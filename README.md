@@ -40,7 +40,7 @@ This repository contains the completed technical assignment for the ServiceHive 
 
 1. Clone the repository and enter the directory:
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/vaibhav3000/helix-srop-assignment
    cd helix-srop
    ```
 2. Install `uv` if not already installed:
