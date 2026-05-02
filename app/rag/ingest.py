@@ -1,82 +1,149 @@
-"""
-RAG ingest CLI.
-
-Usage:
-    python -m app.rag.ingest --path docs/
-    python -m app.rag.ingest --path docs/ --chunk-size 512 --chunk-overlap 64
-
-Reads markdown files, chunks them, embeds, and writes to the vector store.
-
-TODO for candidate: implement chunking and embedding logic.
-"""
 import argparse
 import asyncio
+import hashlib
+import re
 from pathlib import Path
 
+import chromadb
+import google.generativeai as genai
 
-def chunk_markdown(text: str, chunk_size: int = 512, overlap: int = 64) -> list[str]:
-    """
-    Split markdown text into overlapping chunks.
-
-    Design considerations:
-    - Simple character splitting is fast but breaks mid-sentence.
-    - Sentence-aware splitting is better for retrieval quality.
-    - Heading-aware splitting (split on ## / ###) keeps sections coherent.
-    - Overlap helps preserve context at chunk boundaries.
-
-    Choose an approach and document why in the README.
-    """
-    # TODO: implement
-    raise NotImplementedError("Implement chunk_markdown()")
+from app.settings import settings
 
 
-def extract_metadata(file_path: Path, text: str) -> dict:
+def extract_metadata_and_text(text: str) -> tuple[dict, str]:
     """
     Extract metadata from a markdown file's frontmatter.
-
-    Expected frontmatter format:
-        ---
-        title: Deploy Keys
-        product_area: security
-        tags: [keys, secrets]
-        ---
-
-    Returns a dict suitable for vector store metadata filtering.
+    Returns a tuple of (metadata_dict, remaining_text).
     """
-    # TODO: implement
-    raise NotImplementedError("Implement extract_metadata()")
+    metadata = {}
+    if text.startswith("---"):
+        parts = text.split("---", 2)
+        if len(parts) >= 3:
+            frontmatter = parts[1]
+            text = parts[2]
+            for line in frontmatter.strip().split("\n"):
+                if ":" in line:
+                    key, val = line.split(":", 1)
+                    metadata[key.strip()] = val.strip()
+    return metadata, text
 
 
-async def ingest_directory(docs_path: Path, chunk_size: int, chunk_overlap: int) -> None:
+def chunk_markdown(text: str, max_tokens: int = 400) -> list[str]:
+    """
+    Split document into chunks by heading boundaries (# or ##).
+    Then sub-split any chunk exceeding max_tokens (~4 chars per token) by sentence.
+    """
+    # Rough estimate: 1 token = 4 characters
+    max_chars = max_tokens * 4
+    
+    # Split by heading boundaries
+    heading_chunks = re.split(r'\n(?=#{1,2} )', text)
+    
+    final_chunks = []
+    for chunk in heading_chunks:
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+            
+        if len(chunk) <= max_chars:
+            final_chunks.append(chunk)
+        else:
+            # Sub-split by sentence
+            sentences = chunk.split(". ")
+            current_chunk = []
+            current_len = 0
+            
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if not sentence:
+                    continue
+                    
+                # Add period back if missing
+                if not sentence.endswith("."):
+                    sentence += "."
+                    
+                if current_len + len(sentence) > max_chars and current_chunk:
+                    final_chunks.append(" ".join(current_chunk))
+                    current_chunk = [sentence]
+                    current_len = len(sentence)
+                else:
+                    current_chunk.append(sentence)
+                    current_len += len(sentence)
+            
+            if current_chunk:
+                final_chunks.append(" ".join(current_chunk))
+                
+    return final_chunks
+
+
+async def ingest_directory(docs_path: Path) -> None:
     """
     Walk docs_path, chunk and embed every .md file, upsert into vector store.
-
-    Design considerations:
-    - Generate a stable chunk_id (e.g. sha256(file + chunk_index)) for deduplication.
-    - Run embeddings in batches to avoid rate limiting.
-    - Print progress so the user can see what's happening.
     """
     md_files = list(docs_path.rglob("*.md"))
-    print(f"Found {len(md_files)} markdown files in {docs_path}")
-
+    
+    if settings.GOOGLE_API_KEY:
+        genai.configure(api_key=settings.GOOGLE_API_KEY)
+    
+    chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PATH)
+    collection = chroma_client.get_or_create_collection(name="helix_docs")
+    
+    total_chunks = 0
+    
     for file_path in md_files:
-        text = file_path.read_text(encoding="utf-8")
-        metadata = extract_metadata(file_path, text)
-        chunks = chunk_markdown(text, chunk_size, chunk_overlap)
-        print(f"  {file_path.name}: {len(chunks)} chunks")
-        # TODO: embed chunks and upsert to vector store
-
-    print("Ingest complete.")
+        raw_text = file_path.read_text(encoding="utf-8")
+        metadata, text = extract_metadata_and_text(raw_text)
+        
+        chunks = chunk_markdown(text)
+        
+        chunk_ids = []
+        embeddings = []
+        documents = []
+        metadatas = []
+        
+        for i, chunk in enumerate(chunks):
+            chunk_id = hashlib.sha256(f"{file_path}::{i}".encode()).hexdigest()[:12]
+            
+            # Embed chunk
+            if settings.GOOGLE_API_KEY:
+                # In a real scenario, we might batch these
+                response = genai.embed_content(
+                    model=settings.EMBED_MODEL,
+                    content=chunk,
+                    task_type="retrieval_document"
+                )
+                embedding = response['embedding']
+            else:
+                # Mock embedding for local testing if no API key
+                embedding = [0.1] * 768
+                
+            chunk_ids.append(chunk_id)
+            embeddings.append(embedding)
+            documents.append(chunk)
+            
+            chunk_metadata = {"source": str(file_path), "chunk_index": i}
+            chunk_metadata.update(metadata)
+            metadatas.append(chunk_metadata)
+            
+        if chunk_ids:
+            collection.upsert(
+                ids=chunk_ids,
+                embeddings=embeddings,
+                documents=documents,
+                metadatas=metadatas
+            )
+            
+        total_chunks += len(chunks)
+        
+    print(f"Ingest complete: {len(md_files)} files, {total_chunks} chunks upserted.")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest docs into the vector store")
     parser.add_argument("--path", type=Path, required=True, help="Directory containing .md files")
-    parser.add_argument("--chunk-size", type=int, default=512)
-    parser.add_argument("--chunk-overlap", type=int, default=64)
     args = parser.parse_args()
 
-    asyncio.run(ingest_directory(args.path, args.chunk_size, args.chunk_overlap))
+    asyncio.run(ingest_directory(args.path))
 
 
 if __name__ == "__main__":

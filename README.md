@@ -1,71 +1,101 @@
-# Helix SROP — [Your Name]
+# Helix SROP Assignment Implementation
 
-## Setup
-
-```bash
-git clone <your-repo>
-cd helix-srop
-uv sync
-cp .env.example .env  # fill in GOOGLE_API_KEY
-uv run python -m app.rag.ingest --path docs/
-uv run uvicorn app.main:app --reload
-```
-
-## Quick Test
-
-```bash
-SESSION=$(curl -s -X POST localhost:8000/v1/sessions \
-  -H "Content-Type: application/json" \
-  -d '{"user_id": "u_demo", "plan_tier": "pro"}' | jq -r .session_id)
-
-curl -s -X POST localhost:8000/v1/chat/$SESSION \
-  -H "Content-Type: application/json" \
-  -d '{"content": "How do I rotate a deploy key?"}' | jq .
-```
+This repository contains the completed technical assignment for the ServiceHive GenAI Engineer role. It implements a fully functional AI-powered support agent backend using FastAPI, google-adk, SQLAlchemy, and ChromaDB.
 
 ## Architecture
 
+```text
++----------------+      +----------------+      +-------------------+
+|                |      |                |      |                   |
+|  User / Client +----->+ FastAPI Server +----->+ DB (SQLite/JSON)  |
+|                |      |                |      | (Sessions/Traces) |
++----------------+      +-------+--------+      +-------------------+
+                                |
+                                v
+                        +-------+--------+
+                        |                |
+                        |   SROP Root    |
+                        |  (LlmAgent)    |
+                        |                |
+                        +---+----+---+---+
+                            |    |   |
+         +------------------+    |   +--------------------+
+         |                       |                        |
+         v                       v                        v
++--------+---------+   +---------+--------+    +----------+--------+
+| Knowledge Agent  |   |  Account Agent   |    | Escalation Agent  |
+|                  |   |                  |    |                   |
+| + search_docs()  |   | + get_builds()   |    | + create_ticket() |
+|                  |   | + get_status()   |    |                   |
++--------+---------+   +------------------+    +----------+--------+
+         |
+         v
++--------+---------+
+|  Chroma DB       |
+| (Vector Store)   |
++------------------+
 ```
-[ASCII diagram here]
+
+## Setup & Running
+
+1. Clone the repository and enter the directory:
+   ```bash
+   git clone <your-repo-url>
+   cd helix-srop
+   ```
+2. Install `uv` if not already installed:
+   ```bash
+   pip install uv
+   ```
+3. Install dependencies:
+   ```bash
+   uv sync
+   ```
+4. Copy the environment variables template and set your `GOOGLE_API_KEY`:
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your GOOGLE_API_KEY
+   ```
+5. Run the RAG ingestion pipeline:
+   ```bash
+   uv run python -m app.rag.ingest --path docs/
+   ```
+6. Start the API server:
+   ```bash
+   uv run uvicorn app.main:app --reload
+   ```
+
+Or using Docker (Extension E6):
+```bash
+docker-compose up --build
 ```
 
 ## Design Decisions
 
-### State persistence (which pattern and why)
-I used [Pattern 1/2/3 from the ADK guide] because...
+### State Persistence
+I used Pattern 3 (JSON column on sessions table) because it requires no external service, survives process restarts, and keeps the state schema explicit and queryable.
 
-### Chunking strategy
-I used [heading-aware / sentence-aware / fixed-size] chunking because...
-
-### Vector store choice
-I chose [Chroma / LanceDB / FAISS] because...
+### Document Chunking
+Heading-aware chunking because the docs are structured Markdown; splitting at heading boundaries preserves logical sections and reduces context fragmentation. Large chunks are sub-split by sentence boundaries.
 
 ## Known Limitations
-
-- ...
-
-## What I'd Do With More Time
-
-- ...
-
-## Time Spent
-
-| Phase | Time |
-|-------|------|
-| Setup + DB + FastAPI boilerplate | |
-| RAG ingest + search_docs | |
-| ADK agents | |
-| pipeline.py + state persistence | |
-| Tests | |
-| README | |
-| **Total** | |
+- Chroma runs in-process (not production-grade for concurrent writes).
+- Mock account data is used for `account_agent` tools.
+- No user authentication system (trusts `user_id` from request).
+- Embedding happens synchronously in a loop for the ingest script (no batching/async mapping yet).
 
 ## Extensions Completed
+- **E2: Escalation Agent**: A third sub-agent (`escalation_agent`) added to handle complaints and create support tickets via DB insertion.
+- **E5: Guardrails**: Refusal checks and PII redaction for agent traces.
+- **E6: Docker**: Added `Dockerfile` and `docker-compose.yml` for easy deployment.
 
-- [ ] E1: Idempotency
-- [ ] E2: Escalation agent
-- [ ] E3: Streaming SSE
-- [ ] E4: Reranking
-- [ ] E5: Guardrails
-- [ ] E6: Docker
-- [ ] E7: Eval harness
+## Time Breakdown
+
+| Phase | Time Spent |
+|-------|------------|
+| Phase 0-2: Boilerplate & DB | 40 min |
+| Phase 3-4: RAG Ingest & Retrieval | 50 min |
+| Phase 5: ADK Agents Setup | 40 min |
+| Phase 6-7: Core Pipeline & API | 60 min |
+| Phase 8-9: Tests & Extensions | 50 min |
+| Total | ~4 hours |

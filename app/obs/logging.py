@@ -1,31 +1,22 @@
-"""
-Structured logging setup.
-
-All log lines must include session_id, trace_id, user_id when available.
-Use structlog's context vars for request-scoped fields.
-"""
 import logging
-import sys
-
 import structlog
 
-
-def configure_logging() -> None:
+def setup_logging():
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    
     structlog.configure(
         processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
             structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer(),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer()
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        wrapper_class=structlog.stdlib.BoundLogger,
+        cache_logger_on_first_use=True,
     )
-
-
-# Usage in request handlers:
-#   import structlog
-#   log = structlog.get_logger()
-#   structlog.contextvars.bind_contextvars(session_id=session_id, trace_id=trace_id)
-#   log.info("pipeline_started", user_message_len=len(message))

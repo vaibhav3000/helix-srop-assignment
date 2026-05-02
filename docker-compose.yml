@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./helix.db:/app/helix.db
+      - ./.chroma:/app/.chroma
+    env_file:
+      - .env
