@@ -70,7 +70,7 @@ docker-compose up --build
 
 ## Design Decisions
 
-### State Persistence (Pattern 3 — JSON Column)
+### State Persistence (Pattern 3 - JSON Column)
 Instead of serializing full ADK session objects or implementing a custom `BaseSessionService`, only the fields that need to survive restarts (`turn_count`, `last_agent`, `last_ticket_id`) are stored in a JSON column on the `sessions` table. The ADK session is a short-lived, per-turn object rebuilt from DB state on every request. This requires no external service and is horizontally scalable.
 
 ### Document Chunking
