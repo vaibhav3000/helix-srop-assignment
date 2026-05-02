@@ -3,11 +3,13 @@
 .venv/
 __pycache__/
 *.pyc
+helix.db
 *.db
 *.db-shm
 *.db-wal
 .chroma/
 dist/
+build/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/

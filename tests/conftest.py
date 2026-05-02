@@ -54,7 +54,7 @@ def mock_adk(monkeypatch):
             self._is_final = is_final
             for k, v in kwargs.items():
                 setattr(self, k, v)
-                
+
             class Parts:
                 def __init__(self, text):
                     self.text = text
@@ -62,26 +62,38 @@ def mock_adk(monkeypatch):
                 def __init__(self, text):
                     self.parts = [Parts(text)]
             self.content = Content(text)
-            
+
         def is_final_response(self):
             return self._is_final
 
     async def mock_run_async(self, user_id, session_id, new_message, *args, **kwargs):
         content = new_message.get("parts", [{}])[0].get("text", "")
-        
+
         async def _stream():
             if "rotate" in content.lower():
                 from dataclasses import dataclass
                 @dataclass
                 class DummyChunk:
                     chunk_id: str
-                
-                yield FakeEvent(False, None, "", event_type="tool_call", tool_name="search_docs", tool_args={"query": "deploy key"}, id="call_1")
-                yield FakeEvent(False, None, "", event_type="tool_result", tool_call_id="call_1", tool_name="search_docs", result=[DummyChunk("test_chunk_1")])
+
+                yield FakeEvent(
+                    False, None, "",
+                    event_type="tool_call",
+                    tool_name="search_docs",
+                    tool_args={"query": "deploy key"},
+                    id="call_1",
+                )
+                yield FakeEvent(
+                    False, None, "",
+                    event_type="tool_result",
+                    tool_call_id="call_1",
+                    tool_name="search_docs",
+                    result=[DummyChunk("test_chunk_1")],
+                )
                 yield FakeEvent(True, "knowledge", "To rotate a deploy key...", event_type="text_response")
             else:
                 yield FakeEvent(True, "account", "Your plan tier is pro.", event_type="text_response")
-                
+
         return _stream()
 
     monkeypatch.setattr("google.adk.runners.InMemoryRunner.run_async", mock_run_async)

@@ -12,6 +12,14 @@ from app.settings import settings
 
 # pull out YAML frontmatter if present
 def extract_metadata_and_text(text: str) -> tuple[dict, str]:
+    """Extracts YAML frontmatter from the beginning of a markdown document.
+
+    Args:
+        text: The raw text of the markdown file.
+
+    Returns:
+        A tuple containing a dictionary of extracted metadata (if any) and the remaining text.
+    """
     metadata = {}
     if text.startswith("---"):
         parts = text.split("---", 2)
@@ -26,6 +34,15 @@ def extract_metadata_and_text(text: str) -> tuple[dict, str]:
 
 # split at markdown headings; sub-split big sections by sentence
 def chunk_markdown(text: str, max_tokens: int = 400) -> list[str]:
+    """Splits markdown text into logical chunks based on headings and sentence boundaries.
+
+    Args:
+        text: The markdown text to be chunked.
+        max_tokens: The target maximum token limit per chunk.
+
+    Returns:
+        A list of string chunks, ideally preserving logical markdown sections.
+    """
     max_chars = max_tokens * 4  # ~4 chars per token
 
     heading_chunks = re.split(r'\n(?=#{1,2} )', text)
@@ -68,6 +85,11 @@ def chunk_markdown(text: str, max_tokens: int = 400) -> list[str]:
 
 # index all markdown files in the given directory
 async def ingest_directory(docs_path: Path) -> None:
+    """Recursively reads markdown files from a directory, chunks them, generates embeddings, and upserts them into ChromaDB.
+
+    Args:
+        docs_path: A pathlib.Path object representing the directory to scan for .md files.
+    """
     md_files = list(docs_path.rglob("*.md"))
 
     if settings.GOOGLE_API_KEY:
@@ -86,6 +108,7 @@ async def ingest_directory(docs_path: Path) -> None:
         chunk_ids, embeddings, documents, metadatas = [], [], [], []
 
         for i, chunk in enumerate(chunks):
+            # Generate a stable, deterministic ID for each chunk based on its source file and index
             chunk_id = hashlib.sha256(f"{file_path}::{i}".encode()).hexdigest()[:12]
 
             # embed or use a dummy vector if no key set

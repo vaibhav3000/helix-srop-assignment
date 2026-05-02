@@ -20,6 +20,13 @@ logger = structlog.get_logger()
 
 @dataclass
 class TurnResult:
+    """Represents the output of a single conversational turn.
+
+    Attributes:
+        reply: The final text response provided by the agent.
+        routed_to: The name of the agent that generated the response.
+        trace_id: A unique identifier for tracking this execution trace.
+    """
     reply: str
     routed_to: str
     trace_id: str
@@ -27,8 +34,17 @@ class TurnResult:
 
 # refuse off-topic requests early, before touching the LLM
 def check_guardrails(message: str) -> str | None:
+    """Checks the user message against a blocked keyword list to enforce guardrails.
+
+    Args:
+        message: The raw text input from the user.
+
+    Returns:
+        A refusal message string if a blocked keyword is found, otherwise None.
+    """
     lowered = message.lower()
     blocked = ["poem", "joke", "story", "write a song", "homework help", "creative writing", "write me a poem"]
+    # Check for simple substring matches to catch obvious out-of-scope requests
     for kw in blocked:
         if kw in lowered:
             return "I am a Helix support concierge. I cannot assist with creative writing, jokes, or out-of-scope requests."
@@ -36,21 +52,41 @@ def check_guardrails(message: str) -> str | None:
 
 
 def redact_pii(text: str) -> str:
+    """Detects and redacts common Personally Identifiable Information (PII).
+
+    Args:
+        text: The string that may contain PII.
+
+    Returns:
+        The text with emails and phone numbers replaced by [REDACTED].
+    """
     if not isinstance(text, str):
         return text
+    # Redact email addresses
     text = re.sub(r'[\w\.-]+@[\w\.-]+\.\w+', '[REDACTED]', text)
+    # Redact phone numbers (looks for 7+ consecutive digits, optional +, spaces, hyphens)
     text = re.sub(r'\+?\d[\d\s\-\(\)]{7,}\d', '[REDACTED]', text)
     return text
 
 
 def redact_tool_calls(tool_calls: list[dict]) -> list[dict]:
+    """Recursively redacts PII from tool call arguments and results.
+
+    Args:
+        tool_calls: A list of dictionaries representing tool executions.
+
+    Returns:
+        A list of sanitized tool call dictionaries suitable for storage.
+    """
     out = []
     for call in tool_calls:
         clean_args = {}
+        # Apply redaction to every string argument value
         for k, v in (call.get("args") or {}).items():
             clean_args[k] = redact_pii(v) if isinstance(v, str) else v
 
         result = call.get("result")
+        # Apply redaction to string return values
         if isinstance(result, str):
             result = redact_pii(result)
 
@@ -59,6 +95,16 @@ def redact_tool_calls(tool_calls: list[dict]) -> list[dict]:
 
 
 async def run_turn(session_id: str, user_message: str, db: AsyncSession) -> TurnResult:
+    """Executes a single conversational turn, including guardrails, ADK execution, and state persistence.
+
+    Args:
+        session_id: The primary key of the session in the database.
+        user_message: The latest input from the user.
+        db: An active SQLAlchemy async session.
+
+    Returns:
+        A TurnResult object containing the reply, the responding agent, and the trace ID.
+    """
     start_time = time.time()
 
     refusal = check_guardrails(user_message)
@@ -131,11 +177,13 @@ async def run_turn(session_id: str, user_message: str, db: AsyncSession) -> Turn
                 # match by call_id, fall back to tool name
                 if tc["result"] is None and (tc.get("call_id") == call_id or tc["tool_name"] == getattr(event, "tool_name", "")):
                     raw = getattr(event, "result", getattr(event, "content", str(event)))
+                    # Serialize dataclasses (like ChunkResult) to dictionaries so they can be JSON-encoded in SQLite
                     if isinstance(raw, list) and raw and dataclasses.is_dataclass(raw[0]):
                         tc["result"] = [dataclasses.asdict(x) for x in raw]
                     else:
                         tc["result"] = raw
 
+                    # Extract chunk_ids specifically for tracking RAG retrieval effectiveness
                     if tc["tool_name"] == "search_docs" and isinstance(tc["result"], list):
                         for chunk in tc["result"]:
                             if isinstance(chunk, dict) and "chunk_id" in chunk:

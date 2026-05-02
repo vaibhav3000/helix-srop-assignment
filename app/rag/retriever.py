@@ -16,6 +16,15 @@ class ChunkResult:
 
 # search the chroma collection and normalize distances to [0, 1]
 async def search_docs(query: str, k: int = 5) -> list[ChunkResult]:
+    """Generates an embedding for a user query, searches ChromaDB, and returns top-k matching document chunks.
+
+    Args:
+        query: The user's search string.
+        k: The maximum number of document chunks to return. Defaults to 5.
+
+    Returns:
+        A list of ChunkResult objects containing the chunk text, metadata, and normalized similarity score.
+    """
     if settings.GOOGLE_API_KEY:
         genai.configure(api_key=settings.GOOGLE_API_KEY)
         resp = genai.embed_content(
@@ -30,6 +39,7 @@ async def search_docs(query: str, k: int = 5) -> list[ChunkResult]:
 
     chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PATH)
     try:
+        # Access the pre-populated collection
         collection = chroma_client.get_collection(name="helix_docs")
     except Exception:
         return []

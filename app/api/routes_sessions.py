@@ -31,6 +31,6 @@ async def create_session(
     Create a new session. Upsert the user if not seen before.
     Initialize SessionState and persist to DB.
     """
-    session_id = str(uuid.uuid4())
+    _session_id = str(uuid.uuid4())
     # TODO: upsert user, create session row with initial state, commit
     raise NotImplementedError

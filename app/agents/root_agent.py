@@ -6,6 +6,8 @@ from app.agents.escalation_agent import escalation_agent
 from app.agents.knowledge_agent import knowledge_agent
 from app.settings import settings
 
+# Define the primary entry-point agent that orchestrates the conversational flow.
+# This agent does not handle requests directly; it delegates them to specialized sub-agents.
 root_agent = LlmAgent(
     name="srop_root",
     model=settings.MODEL_NAME,
