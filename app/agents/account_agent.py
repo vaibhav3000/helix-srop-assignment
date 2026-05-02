@@ -24,6 +24,6 @@ def get_account_status(user_id: str) -> dict:
 account_agent = LlmAgent(
     name="account_agent",
     model=settings.MODEL_NAME,
-    instructions="You are an account and build specialist. Answer questions based on the user's account and build status.",
+    instruction="You are an account and build specialist. Answer questions based on the user's account and build status.",
     tools=[FunctionTool(get_recent_builds), FunctionTool(get_account_status)]
 )

@@ -1,9 +1,22 @@
 .DS_Store
 .env
+.venv/
 __pycache__/
 *.pyc
-.venv/
-helix.db
+*.db
+*.db-shm
+*.db-wal
 .chroma/
+dist/
+*.egg-info/
 .pytest_cache/
 .ruff_cache/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.fdb_latexmk
+*.fls
+*.synctex.gz

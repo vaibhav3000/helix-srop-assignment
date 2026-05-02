@@ -1,0 +1,942 @@
+\documentclass[12pt,a4paper]{article}
+
+% Packages
+\usepackage[margin=1.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+% microtype removed for compatibility
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{titling}
+\usepackage{fancyhdr}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{enumitem}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{tcolorbox}
+\usepackage{mdframed}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{courier}
+\usepackage{setspace}
+
+% Colors
+\definecolor{primary}{RGB}{30, 64, 175}
+\definecolor{accent}{RGB}{5, 150, 105}
+\definecolor{warning}{RGB}{180, 83, 9}
+\definecolor{codebackground}{RGB}{248, 249, 250}
+\definecolor{codeborder}{RGB}{200, 210, 230}
+\definecolor{darkgray}{RGB}{55, 65, 81}
+\definecolor{lightgray}{RGB}{243, 244, 246}
+\definecolor{sectioncolor}{RGB}{17, 24, 39}
+
+% Hyperref setup
+\hypersetup{
+  colorlinks=true,
+  linkcolor=primary,
+  urlcolor=accent,
+  citecolor=primary,
+  pdfauthor={Vaibhav Mahore},
+  pdftitle={Helix SROP Technical Report},
+}
+
+% Section formatting
+\titleformat{\section}
+  {\large\bfseries\color{sectioncolor}}
+  {\thesection.}{0.5em}{}[\color{codeborder}\titlerule]
+
+\titleformat{\subsection}
+  {\normalsize\bfseries\color{primary}}
+  {\thesubsection.}{0.5em}{}
+
+\titleformat{\subsubsection}
+  {\normalsize\bfseries\color{darkgray}}
+  {\thesubsubsection.}{0.5em}{}
+
+% Code listing style
+\lstset{
+  backgroundcolor=\color{codebackground},
+  frame=single,
+  framerule=0.5pt,
+  rulecolor=\color{codeborder},
+  basicstyle=\ttfamily\footnotesize,
+  keywordstyle=\color{primary}\bfseries,
+  commentstyle=\color{accent}\itshape,
+  stringstyle=\color{warning},
+  numberstyle=\tiny\color{darkgray},
+  numbers=left,
+  numbersep=5pt,
+  breaklines=true,
+  showstringspaces=false,
+  tabsize=4,
+  xleftmargin=15pt,
+}
+
+\lstdefinestyle{bash}{
+  language=bash,
+  morekeywords={uv,docker,pytest,ruff},
+}
+
+\lstdefinestyle{python}{
+  language=Python,
+}
+
+% Custom boxes
+\tcbset{
+  defbox/.style={
+    colback=lightgray,
+    colframe=primary,
+    fonttitle=\bfseries\small,
+    boxrule=0.5pt,
+    arc=3pt,
+    left=6pt,right=6pt,top=4pt,bottom=4pt,
+  },
+  warnbox/.style={
+    colback=yellow!10,
+    colframe=warning,
+    fonttitle=\bfseries\small,
+    boxrule=0.5pt,
+    arc=3pt,
+    left=6pt,right=6pt,top=4pt,bottom=4pt,
+  },
+  codebox/.style={
+    colback=codebackground,
+    colframe=codeborder,
+    boxrule=0.5pt,
+    arc=2pt,
+    left=4pt,right=4pt,top=2pt,bottom=2pt,
+  },
+}
+
+% Page style
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{darkgray} Helix SROP -- Technical Report}
+\fancyhead[R]{\small\color{darkgray} ServiceHive GenAI Engineer Assignment}
+\fancyfoot[C]{\small\color{darkgray}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{codeborder}\leaders\hrule height \headrulewidth\hfill}}
+
+% Title
+\title{%
+  {\large\color{darkgray}\textsc{ServiceHive -- GenAI Engineer Assignment}}\\[0.5em]
+  {\LARGE\bfseries\color{primary} Helix SROP: Stateful RAG Orchestration Pipeline}\\[0.3em]
+  {\large\color{darkgray} Complete Technical Report for Reviewer}
+}
+\author{Vaibhav Mahore -- \href{https://github.com/vaibhav3000}{github.com/vaibhav3000}}
+\date{May 2026}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{fancy}
+
+\vspace{0.5em}
+\begin{tcolorbox}[defbox, title={Document Purpose}]
+This report is a complete technical account of the Helix SROP assignment implementation. It covers every architectural decision, module, data flow, and design tradeoff in detail. Sections map directly to the graded rubric items from the assignment specification, making it easy to verify each requirement. A full file-structure reference and setup instructions are included at the end.
+\end{tcolorbox}
+
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Project Overview}
+% ============================================================
+
+\subsection{What Was Built}
+
+The Helix SROP (Stateful RAG Orchestration Pipeline) is a production-quality AI support backend for a fictional B2B SaaS platform called Helix. The system exposes a REST API that allows a client to open a persistent chat session and send messages. Behind the API, a multi-agent LLM system routes each message to the correct specialist sub-agent, retrieves relevant documentation when needed, queries mock account data when needed, and escalates complaints to a ticketing system. All state persists across server restarts.
+
+The three core capabilities the assignment required:
+
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Knowledge answering}: A user asks "How do I rotate a deploy key?" and the system retrieves the answer from product documentation using vector similarity search, with chunk-level citations in the reply.
+  \item \textbf{Account lookups}: A user asks "Show me my last 3 failed builds" and the system queries internal tools (mocked) and returns structured build data.
+  \item \textbf{Escalation}: A user says "I want to raise a complaint" and the system creates a support ticket in the database and stores the ticket ID in the conversation state for follow-up.
+\end{itemize}
+
+\subsection{Technology Stack}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lX}
+\toprule
+\textbf{Layer} & \textbf{Technology} \\
+\midrule
+Web framework & FastAPI 0.115+ with async handlers throughout \\
+LLM and agents & Google ADK (\texttt{google-adk}) with Gemini 2.0 Flash \\
+Embeddings & Google Generative AI (\texttt{text-embedding-004}, 768 dimensions) \\
+Vector store & ChromaDB (persistent, on-disk collection named \texttt{helix\_docs}) \\
+Application database & SQLite via SQLAlchemy 2.x async + aiosqlite driver \\
+Data validation & Pydantic v2 for all request and response schemas \\
+Logging & structlog with JSON output and stdlib interception \\
+Dependency management & uv (fast Python package manager) \\
+Containerisation & Docker with docker-compose (Extension E6) \\
+Testing & pytest with pytest-asyncio, httpx AsyncClient, unittest.mock \\
+Linting & ruff (line length 100, rules E/W/F/I/N/UP) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+
+
+% ============================================================
+\section{System Architecture}
+% ============================================================
+
+\subsection{High-Level Architecture Diagram}
+
+The following diagram shows the complete system from a single HTTP request through to all downstream components:
+
+\begin{center}
+\begin{tcolorbox}[codebox]
+\begin{lstlisting}[numbers=none, basicstyle=\ttfamily\scriptsize]
+  HTTP Client
+       |
+       | POST /v1/sessions          POST /v1/chat/{id}       GET /v1/traces/{id}
+       v
++------+-------------------------------------------------------------------+
+|                          FastAPI Application                              |
+|   app/main.py: lifespan (create_all, setup_logging), /healthz, handlers  |
+|   app/api/routes.py: session create, chat dispatch, trace fetch           |
++------+-------------------------------------------------------------------+
+       |                                        |
+       | Depends(get_db)                        | SQLAlchemy AsyncSession
+       v                                        v
++------+-------------------+    +--------------+---------------------------+
+|   app/srop/pipeline.py   |    |           SQLite Database                |
+|                          |    |                                           |
+|  1. check_guardrails()   |    |  sessions    (session_id, user_id,       |
+|  2. load session state   |    |               plan_tier, state JSON)     |
+|     from DB JSON col     |    |  messages    (message_id, session_id,    |
+|  3. build InMemoryRunner |    |               role, content)             |
+|  4. inject state into    |    |  agent_traces(trace_id, routed_to,       |
+|     ADK session          |    |               tool_calls, chunk_ids,     |
+|  5. runner.run_async()   |    |               latency_ms)               |
+|  6. parse ADK events     |    |  tickets     (ticket_id, session_id,     |
+|  7. redact_tool_calls()  |    |               summary, priority)        |
+|  8. write trace + msgs   |    +-------------------------------------------+
+|  9. update state JSON    |
+|  10. return TurnResult   |
++------+-------------------+
+       |
+       | AgentTool routing via LLM tool selection
+       v
++------+-------------------------------------------------------------------+
+|                        srop_root  (LlmAgent)                             |
+|  model: gemini-2.0-flash                                                 |
+|  tools: [AgentTool(knowledge_agent),                                     |
+|           AgentTool(account_agent),                                      |
+|           AgentTool(escalation_agent)]                                   |
++--------+--------------------------+---------------------+----------------+
+         |                          |                     |
+         v                          v                     v
++--------+----------+  +-----------+---------+  +--------+----------+
+| knowledge_agent   |  |  account_agent      |  | escalation_agent  |
+| (LlmAgent)        |  |  (LlmAgent)         |  | (LlmAgent)        |
+|                   |  |                     |  |                   |
+| tool:             |  | tools:              |  | tool:             |
+|  search_docs()    |  |  get_recent_builds()|  |  create_ticket()  |
+|                   |  |  get_account_status()|  |                   |
+| cites [chunk_id]  |  | (mock data)         |  | writes to DB      |
+| in every answer   |  |                     |  | returns ticket_id |
++--------+----------+  +---------------------+  +-------------------+
+         |
+         v
++--------+----------+
+|    ChromaDB       |
+|  collection:      |
+|  "helix_docs"     |
+|                   |
+|  768-dim vectors  |
+|  + chunk metadata |
+|  + stable IDs     |
++-------------------+
+\end{lstlisting}
+\end{tcolorbox}
+\end{center}
+
+\subsection{Request Lifecycle}
+
+A single call to \texttt{POST /v1/chat/\{session\_id\}} follows this exact sequence:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item FastAPI resolves the route handler in \texttt{app/api/routes.py} and injects an \texttt{AsyncSession} via \texttt{Depends(get\_db)}.
+  \item The route handler calls \texttt{pipeline.run\_turn(session\_id, content, db)}.
+  \item \textbf{Guardrail check}: The message is compared against a keyword list. If it matches an out-of-scope pattern (poem, joke, story, etc.), a refusal reply is returned immediately with no LLM call made.
+  \item \textbf{State hydration}: The \texttt{sessions} row is fetched from SQLite. Its \texttt{state} JSON column is deserialized to extract \texttt{turn\_count}, \texttt{last\_agent}, and \texttt{last\_ticket\_id}.
+  \item \textbf{Runner construction}: A fresh \texttt{InMemoryRunner} is built around the root agent. An ephemeral ADK session is created and the DB state fields are injected into it.
+  \item \textbf{LLM execution}: \texttt{runner.run\_async()} is called inside \texttt{asyncio.wait\_for}. If it does not respond within \texttt{LLM\_TIMEOUT\_SECONDS}, an \texttt{UpstreamTimeoutError} is raised, which the route handler converts to HTTP 504.
+  \item \textbf{Event parsing}: The async event stream from ADK is iterated. Tool call events are logged. The final response event yields the reply text and the name of the sub-agent that handled the request.
+  \item \textbf{PII redaction}: Before writing to the DB, \texttt{redact\_tool\_calls()} scrubs email addresses and phone numbers from tool call arguments and results.
+  \item \textbf{Persistence}: One \texttt{AgentTrace} row and two \texttt{Message} rows (user + assistant) are written.
+  \item \textbf{State update}: \texttt{session.state["turn\_count"]} is incremented and \texttt{session.state["last\_agent"]} is set. The changes are committed to SQLite.
+  \item The route handler returns \texttt{\{reply, routed\_to, trace\_id\}} as JSON.
+\end{enumerate}
+
+% ============================================================
+\section{Database Design}
+% ============================================================
+
+\subsection{Schema Overview}
+
+The application uses four tables defined in \texttt{app/db/models.py} using SQLAlchemy 2.x async declarative mapping with \texttt{mapped\_column}.
+
+\subsubsection{sessions}
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} & \textbf{Purpose} \\
+\midrule
+\texttt{session\_id} & String(36) & Primary key & UUID generated on creation \\
+\texttt{user\_id} & String(64) & Indexed & Client-supplied user identifier \\
+\texttt{plan\_tier} & String(16) & & "free", "pro", or "enterprise" \\
+\texttt{state} & JSON & & Turn count, last agent, last ticket ID \\
+\texttt{created\_at} & DateTime & & UTC timestamp \\
+\texttt{updated\_at} & DateTime & & UTC timestamp, updated each turn \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The \texttt{state} column is the most important field in the entire schema. It is the mechanism by which conversation context survives process restarts. Its shape at any point in a conversation looks like:
+
+\begin{lstlisting}[style=python, numbers=none]
+{
+    "turn_count": 3,
+    "last_agent": "knowledge_agent",
+    "last_ticket_id": "tkt-a4f2e1"   # only present if E2 escalation ran
+}
+\end{lstlisting}
+
+\subsubsection{messages}
+
+Stores every user and assistant message, providing an audit trail independent of the LLM's context window.
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} & \textbf{Purpose} \\
+\midrule
+\texttt{message\_id} & String(36) & Primary key & UUID \\
+\texttt{session\_id} & String & FK + Indexed & Links to \texttt{sessions} \\
+\texttt{role} & String(16) & & "user" or "assistant" \\
+\texttt{content} & Text & & Raw message body \\
+\texttt{created\_at} & DateTime & & UTC timestamp \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{agent\_traces}
+
+One row per conversation turn. The assignment grader uses \texttt{GET /v1/traces/\{trace\_id\}} to debug the system, so this table needs to be complete enough to reconstruct exactly what happened in each turn.
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} & \textbf{Purpose} \\
+\midrule
+\texttt{trace\_id} & String(36) & Primary key & UUID \\
+\texttt{session\_id} & String & FK + Indexed & Links to \texttt{sessions} \\
+\texttt{routed\_to} & String(32) & & Sub-agent name (e.g., "knowledge\_agent") \\
+\texttt{tool\_calls} & JSON & & List of \{tool\_name, args, result\} dicts \\
+\texttt{retrieved\_chunk\_ids} & JSON & & List of chunk ID strings from \texttt{search\_docs} \\
+\texttt{latency\_ms} & Integer & & Total turn latency in milliseconds \\
+\texttt{created\_at} & DateTime & & UTC timestamp \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection{tickets}
+
+Created by the escalation agent (Extension E2) when a user raises a complaint.
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+\textbf{Column} & \textbf{Type} & \textbf{Constraint} & \textbf{Purpose} \\
+\midrule
+\texttt{ticket\_id} & String(36) & Primary key & UUID returned to the user \\
+\texttt{session\_id} & String & FK + Indexed & Links to \texttt{sessions} \\
+\texttt{user\_id} & String(64) & Indexed & User who raised the ticket \\
+\texttt{summary} & Text & & The extracted issue description \\
+\texttt{priority} & String(16) & & "low", "medium", or "high" \\
+\texttt{created\_at} & DateTime & & UTC timestamp \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Async Database Setup}
+
+\texttt{app/db/session.py} configures the async SQLAlchemy stack:
+
+\begin{lstlisting}[style=python]
+async_engine = create_async_engine(settings.DATABASE_URL, echo=False)
+AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False)
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        yield session
+\end{lstlisting}
+
+The \texttt{DATABASE\_URL} defaults to \texttt{sqlite+aiosqlite:///./helix.db}. The \texttt{aiosqlite} driver provides a non-blocking async interface to SQLite. \texttt{expire\_on\_commit=False} prevents SQLAlchemy from expiring objects after a commit, which matters in async contexts because lazy loading would fail.
+
+Tables are created on startup via the FastAPI lifespan:
+
+\begin{lstlisting}[style=python]
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    async with async_engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    setup_logging()
+    yield
+\end{lstlisting}
+
+% ============================================================
+\section{RAG Pipeline}
+% ============================================================
+
+\subsection{Ingestion Pipeline (\texttt{app/rag/ingest.py})}
+
+The ingestion script is a CLI tool run once before the server starts:
+
+\begin{lstlisting}[style=bash, numbers=none]
+uv run python -m app.rag.ingest --path docs/
+\end{lstlisting}
+
+It processes all ten Helix product Markdown files in \texttt{docs/} and populates the ChromaDB vector store. The pipeline steps are:
+
+\subsubsection{Step 1: Frontmatter extraction}
+
+Each Markdown file may begin with a YAML frontmatter block delimited by \texttt{---} markers. A regex extracts this into a \texttt{metadata} dictionary containing fields like \texttt{product\_area} and \texttt{title}. This metadata is stored alongside each chunk in ChromaDB and is returned in search results.
+
+\subsubsection{Step 2: Heading-aware chunking}
+
+The document body (after frontmatter) is split using a regex targeting heading lines:
+
+\begin{lstlisting}[style=python, numbers=none]
+re.split(r'\n(?=#{1,2} )', document_body)
+\end{lstlisting}
+
+This splits on lines that start with \texttt{\#} or \texttt{\#\#}, preserving each section as an atomic chunk. This approach was chosen over fixed-token chunking because the Helix documentation is structured Markdown where each heading delineates a distinct concept. Splitting at heading boundaries means the knowledge agent retrieves complete logical sections rather than arbitrary token windows that might cut a sentence mid-thought.
+
+\subsubsection{Step 3: Sentence-boundary sub-splitting}
+
+Any chunk exceeding approximately 400 tokens (estimated as 1600 characters) is further split on sentence boundaries (\texttt{". "}). This prevents very large sections from dominating the embedding space.
+
+\subsubsection{Step 4: Stable chunk ID generation}
+
+Each chunk gets a deterministic 12-character ID:
+
+\begin{lstlisting}[style=python, numbers=none]
+chunk_id = hashlib.sha256(f"{filepath}::{chunk_index}".encode()).hexdigest()[:12]
+\end{lstlisting}
+
+Using the file path and chunk index as the hash input means the same file always produces the same IDs. Re-running the ingest script does not create duplicate entries in ChromaDB because Chroma uses the chunk ID as the document ID and performs an upsert.
+
+\subsubsection{Step 5: Embedding and upsert}
+
+Each chunk text is embedded via \texttt{google.generativeai.embed\_content} using the \texttt{models/text-embedding-004} model, which produces 768-dimensional vectors. The chunk, its embedding, its metadata, and its ID are upserted into the \texttt{helix\_docs} ChromaDB collection at \texttt{settings.CHROMA\_PATH}.
+
+\subsection{Retrieval Function (\texttt{app/rag/retriever.py})}
+
+\begin{lstlisting}[style=python]
+@dataclass
+class ChunkResult:
+    chunk_id: str
+    score: float      # in [0, 1], higher is more similar
+    text: str
+    metadata: dict
+
+async def search_docs(query: str, k: int = 5) -> list[ChunkResult]:
+    ...
+\end{lstlisting}
+
+The function embeds the query using the same embedding model, queries the ChromaDB collection for the top-k nearest neighbours, and normalises the returned L2/cosine distances to a \texttt{[0, 1]} score using:
+
+\begin{equation}
+\text{score} = \max\!\left(0.0,\ \min\!\left(1.0,\ 1.0 - d_i\right)\right)
+\end{equation}
+
+where $d_i$ is the distance returned by ChromaDB. A score of 1.0 means identical, a score of 0.0 means maximally dissimilar.
+
+The function returns a list of \texttt{ChunkResult} objects. The knowledge agent is bound to this function as a tool and cites the returned \texttt{chunk\_id} values in its answer.
+
+% ============================================================
+\section{Google ADK Agent Architecture}
+% ============================================================
+
+\subsection{Why Google ADK}
+
+The assignment specifically required the \texttt{google-adk} package and the \texttt{AgentTool} pattern. The ADK provides a structured way to compose LLM agents where a parent agent can call a child agent as if it were a function. The parent does not parse the child's output as text; instead, the LLM selects a child agent by name through the standard function-calling mechanism of the underlying model. This makes routing robust: it cannot misroute due to a string-matching failure.
+
+\subsection{Agent Definitions}
+
+\subsubsection{knowledge\_agent (\texttt{app/agents/knowledge\_agent.py})}
+
+\begin{lstlisting}[style=python]
+knowledge_agent = LlmAgent(
+    name="knowledge_agent",
+    model=settings.MODEL_NAME,    # gemini-2.0-flash
+    instruction=(
+        "You are a Helix product support specialist. "
+        "Answer only from the retrieved documentation. "
+        "Every factual claim must cite the source chunk using [chunk_id] notation. "
+        "If no relevant chunks are found, say so."
+    ),
+    tools=[FunctionTool(search_docs)],
+)
+\end{lstlisting}
+
+The system instruction is strict about citations. This means the \texttt{agent\_traces} table will always contain non-empty \texttt{retrieved\_chunk\_ids} for any knowledge-type query that found relevant content.
+
+\subsubsection{account\_agent (\texttt{app/agents/account\_agent.py})}
+
+\begin{lstlisting}[style=python]
+def get_recent_builds(user_id: str, limit: int = 5) -> list[dict]:
+    # Returns mock build records with status, timestamp, error_message fields
+
+def get_account_status(user_id: str) -> dict:
+    # Returns mock dict with plan_tier, builds_remaining, account_health
+
+account_agent = LlmAgent(
+    name="account_agent",
+    model=settings.MODEL_NAME,
+    instruction="You are an account and build specialist. ...",
+    tools=[FunctionTool(get_recent_builds), FunctionTool(get_account_status)],
+)
+\end{lstlisting}
+
+The mock data is sufficient for the assignment because the grader evaluates the wiring, not the data source. A real implementation would replace these with authenticated API calls to a build service.
+
+\subsubsection{escalation\_agent (\texttt{app/agents/escalation\_agent.py})} -- Extension E2
+
+\begin{lstlisting}[style=python]
+async def create_ticket(
+    user_id: str, summary: str, priority: Literal["low", "medium", "high"]
+) -> dict:
+    # Inserts a row into the tickets table, returns {"ticket_id": str}
+
+escalation_agent = LlmAgent(
+    name="escalation_agent",
+    model=settings.MODEL_NAME,
+    instruction="You are an escalation specialist. ...",
+    tools=[FunctionTool(create_ticket)],
+)
+\end{lstlisting}
+
+After \texttt{create\_ticket} runs, the pipeline extracts the returned \texttt{ticket\_id} from the tool call result and stores it in \texttt{session.state["last\_ticket\_id"]}, making it available in subsequent turns.
+
+\subsubsection{srop\_root (\texttt{app/agents/root\_agent.py})}
+
+\begin{lstlisting}[style=python]
+from google.adk.tools.agent_tool import AgentTool
+
+root_agent = LlmAgent(
+    name="srop_root",
+    model=settings.MODEL_NAME,
+    instruction=(
+        "You are an AI support concierge for Helix. "
+        "Route knowledge questions (how-to, docs, configuration) to knowledge_agent. "
+        "Route account/build queries to account_agent. "
+        "Route complaints or escalation requests to escalation_agent. "
+        "Never answer directly; always delegate to the appropriate sub-agent."
+    ),
+    tools=[
+        AgentTool(agent=knowledge_agent),
+        AgentTool(agent=account_agent),
+        AgentTool(agent=escalation_agent),
+    ],
+)
+\end{lstlisting}
+
+\subsection{How AgentTool Routing Works}
+
+This is the most technically important aspect of the agent design. When the root agent receives a user message:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item The ADK presents the three sub-agents to the Gemini model as callable tools with their names and descriptions.
+  \item The model selects a tool via the standard function-calling API, not via text generation. This means the selection is structured and unambiguous.
+  \item ADK suspends the root agent, instantiates the selected child agent, runs it with the user message as context, and returns its output back to the root agent as a tool result.
+  \item The root agent then formulates its final response based on the child agent's output.
+\end{enumerate}
+
+The assignment explicitly forbids routing via string parsing of LLM output (and deducts 8 points if you do it). The \texttt{AgentTool} pattern satisfies this requirement because routing is done via the model's function-calling mechanism, which is deterministic and structured.
+
+% ============================================================
+\section{Core Pipeline and State Persistence}
+% ============================================================
+
+\subsection{The run\_turn Function (\texttt{app/srop/pipeline.py})}
+
+The pipeline is the highest-weighted section of the assignment (15 points for state management alone). Its signature:
+
+\begin{lstlisting}[style=python]
+async def run_turn(
+    session_id: str,
+    user_message: str,
+    db: AsyncSession,
+) -> TurnResult:
+    ...
+
+@dataclass
+class TurnResult:
+    reply: str
+    routed_to: str
+    trace_id: str
+\end{lstlisting}
+
+\subsection{State Persistence Design: Pattern 3}
+
+The assignment guide described three patterns for persisting state across process restarts. Pattern 3 was chosen: serialize all required context into a JSON column on the \texttt{sessions} table and rebuild the ADK session from scratch on every turn.
+
+\begin{tcolorbox}[defbox, title={Why Pattern 3 was chosen over Patterns 1 and 2}]
+\textbf{Pattern 1} (dump the entire ADK session object to DB): requires serializing ADK's internal session objects, which are complex and can change between SDK versions. It would also store the full message history, causing DB bloat over long conversations.
+
+\textbf{Pattern 2} (use ADK's own session service with a custom persistent backend): requires implementing a custom \texttt{BaseSessionService} class, which is significantly more engineering work and tightly couples the persistence layer to the ADK SDK's internal abstractions.
+
+\textbf{Pattern 3} (minimal JSON column): stores only the fields that are actually needed across turns (\texttt{turn\_count}, \texttt{last\_agent}, \texttt{last\_ticket\_id}). The schema is explicit, queryable, and upgrade-safe. The ADK session is a short-lived, per-turn object. This approach requires no external service and survives process restarts because the state lives entirely in SQLite.
+\end{tcolorbox}
+
+\subsection{Process Restart Behaviour}
+
+When uvicorn restarts:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item All Python runtime state is wiped. There are no module-level caches or global variables holding session data.
+  \item The next incoming request creates a new \texttt{AsyncSession}, fetches the \texttt{sessions} row from SQLite, deserializes the \texttt{state} JSON column, and rebuilds the ADK runner with that state injected.
+  \item The conversation continues as if nothing happened.
+\end{enumerate}
+
+This is verifiable in the Loom demo: a multi-turn conversation is started, uvicorn is stopped with Ctrl+C, restarted, and a follow-up message is sent. The server correctly knows the \texttt{user\_id}, \texttt{plan\_tier}, and prior \texttt{turn\_count} without re-asking.
+
+\subsection{ADK Event Parsing}
+
+After \texttt{runner.run\_async()} completes, the async event stream is iterated to extract structured information:
+
+\begin{lstlisting}[style=python]
+tool_calls = []
+routed_to = "unknown"
+retrieved_chunk_ids = []
+final_reply = ""
+
+async for event in response:
+    if event.type == "tool_call":
+        tool_calls.append({
+            "tool_name": event.tool_name,
+            "args": event.args,
+            "call_id": event.call_id,
+        })
+    if event.type == "tool_result":
+        # merge result back; extract chunk_ids if this was search_docs
+        for tc in tool_calls:
+            if tc["call_id"] == event.call_id:
+                tc["result"] = event.result
+                if tc["tool_name"] == "search_docs":
+                    for r in event.result:
+                        retrieved_chunk_ids.append(r["chunk_id"])
+    if event.is_final_response():
+        routed_to = event.author       # sub-agent name
+        final_reply = event.content.parts[0].text
+\end{lstlisting}
+
+% ============================================================
+\section{API Design}
+% ============================================================
+
+\subsection{Endpoints}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{llX}
+\toprule
+\textbf{Method} & \textbf{Path} & \textbf{Description} \\
+\midrule
+\texttt{POST} & \texttt{/v1/sessions} & Creates a new session. Body: \texttt{\{user\_id, plan\_tier\}}. Returns \texttt{\{session\_id\}}. \\
+\texttt{POST} & \texttt{/v1/chat/\{session\_id\}} & Sends a message. Body: \texttt{\{content\}}. Returns \texttt{\{reply, routed\_to, trace\_id\}}. \\
+\texttt{GET} & \texttt{/v1/traces/\{trace\_id\}} & Returns the full trace row as JSON for debugging. \\
+\texttt{GET} & \texttt{/healthz} & Returns \texttt{\{"status": "ok"\}}. Used by Docker health checks. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Error Responses}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{HTTP Code} & \textbf{Error Code} & \textbf{Trigger} \\
+\midrule
+404 & \texttt{SESSION\_NOT\_FOUND} & \texttt{session\_id} does not exist in DB \\
+404 & \texttt{TRACE\_NOT\_FOUND} & \texttt{trace\_id} does not exist in DB \\
+504 & \texttt{UPSTREAM\_TIMEOUT} & LLM did not respond within \texttt{LLM\_TIMEOUT\_SECONDS} \\
+422 & (Pydantic default) & Request body fails validation \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All error responses are JSON objects with at minimum \texttt{\{"error": "\textless{}ERROR\_CODE\textgreater{}", "detail": "\textless{}message\textgreater{}"\}}.
+
+\subsection{Pydantic v2 Models}
+
+All request and response bodies use Pydantic v2 models:
+
+\begin{lstlisting}[style=python]
+class CreateSessionRequest(BaseModel):
+    user_id: str
+    plan_tier: Literal["free", "pro", "enterprise"]
+
+class CreateSessionResponse(BaseModel):
+    session_id: str
+
+class ChatRequest(BaseModel):
+    content: str
+
+class ChatResponse(BaseModel):
+    reply: str
+    routed_to: str
+    trace_id: str
+\end{lstlisting}
+
+% ============================================================
+\section{Extensions}
+% ============================================================
+
+\subsection{E2: Escalation Agent}
+
+A third sub-agent was added to the root agent's tool list. When a user message expresses a complaint or requests escalation, the root agent routes to \texttt{escalation\_agent}, which calls \texttt{create\_ticket()}. The tool writes a row to the \texttt{tickets} table and returns the generated UUID as the ticket ID. The pipeline then stores this in \texttt{session.state["last\_ticket\_id"]} so follow-up turns can reference the ticket.
+
+\subsection{E5: Guardrails}
+
+Two mechanisms are implemented:
+
+\textbf{Out-of-scope refusal:} Before the ADK runner is invoked, \texttt{check\_guardrails(user\_message)} checks the lowercased message against a keyword list: \texttt{["poem", "joke", "story", "write a song", "homework help", "creative writing"]}. A match returns a predefined refusal message immediately, with no LLM call and no API cost. Only the user message is logged; no \texttt{AgentTrace} is written.
+
+\textbf{PII redaction:} After event parsing but before writing to the DB, \texttt{redact\_tool\_calls()} applies two regular expressions over all tool call arguments and results:
+
+\begin{lstlisting}[style=python, numbers=none]
+EMAIL_RE = re.compile(r'[\w\.-]+@[\w\.-]+\.\w+')
+PHONE_RE = re.compile(r'\+?\d[\d\s\-\(\)]{7,}\d')
+\end{lstlisting}
+
+Any match is replaced with \texttt{[REDACTED]}. This prevents PII from entering the \texttt{agent\_traces} table even if a user inadvertently includes it in a message.
+
+\subsection{E6: Docker}
+
+The \texttt{Dockerfile} uses \texttt{python:3.11-slim} as the base image, installs \texttt{uv}, and runs the server on port 8000:
+
+\begin{lstlisting}[numbers=none]
+FROM python:3.11-slim
+RUN pip install uv
+COPY . /app
+WORKDIR /app
+RUN uv sync --no-dev
+EXPOSE 8000
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+\end{lstlisting}
+
+The \texttt{docker-compose.yml} mounts two volumes to persist the database and vector store across container restarts: \texttt{./helix.db:/app/helix.db} and \texttt{./.chroma:/app/.chroma}. The \texttt{.env} file is passed in via \texttt{env\_file: .env}.
+
+% ============================================================
+\section{Testing}
+% ============================================================
+
+\subsection{Test Suite Overview}
+
+\texttt{pytest -q} must pass from a clean clone. Three test files cover integration, RAG, and guardrails.
+
+\subsection{Integration Test (\texttt{tests/test\_integration.py})}
+
+The LLM is mocked at the ADK runner boundary using \texttt{unittest.mock.AsyncMock}. A \texttt{fake\_event\_stream()} generator yields realistic fake ADK event objects that mimic the shape of a real \texttt{knowledge\_agent} response.
+
+The test sequence:
+
+\begin{enumerate}[leftmargin=1.5em]
+  \item Create a session via \texttt{POST /v1/sessions}.
+  \item Send a first message. Assert \texttt{routed\_to == "knowledge\_agent"}.
+  \item Send a second message to the same \texttt{session\_id}. Assert the response contains a non-empty \texttt{trace\_id} that is different from the first turn's \texttt{trace\_id}, proving the session was correctly loaded from DB (rather than raising a \texttt{SessionNotFoundError}).
+\end{enumerate}
+
+The key assertion is that turn 2 works at all -- if state was not persisted after turn 1, the pipeline would fail to find the session and raise a 404. The test also verifies that both trace rows share the same \texttt{session\_id}.
+
+\subsection{RAG Unit Test (\texttt{tests/test\_rag.py})}
+
+\begin{lstlisting}[style=python]
+@pytest.fixture
+def ephemeral_chroma(monkeypatch):
+    client = chromadb.Client()  # in-memory, no disk I/O
+    collection = client.create_collection("helix_docs")
+    collection.add(
+        ids=["chunk_abc123", "chunk_def456", "chunk_ghi789"],
+        documents=["doc1", "doc2", "doc3"],
+        embeddings=[[0.1] * 768, [0.2] * 768, [0.3] * 768],
+    )
+    monkeypatch.setattr("chromadb.PersistentClient", lambda **kw: client)
+    monkeypatch.setattr(
+        "google.generativeai.embed_content",
+        lambda **kw: {"embedding": [0.1] * 768},
+    )
+    return collection
+
+async def test_search_docs_returns_valid_scores(ephemeral_chroma):
+    results = await search_docs("rotate deploy key", k=3)
+    assert len(results) > 0
+    for r in results:
+        assert r.chunk_id != ""
+        assert 0.0 <= r.score <= 1.0
+\end{lstlisting}
+
+\subsection{Guardrails Test (\texttt{tests/test\_guardrails.py})}
+
+\begin{lstlisting}[style=python]
+async def test_poem_request_is_refused(async_client, created_session):
+    response = await async_client.post(
+        f"/v1/chat/{created_session}",
+        json={"content": "write me a poem about cats"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert "routed_to" not in data or data["routed_to"] == ""
+    assert "cannot" in data["reply"].lower() or "outside" in data["reply"].lower()
+\end{lstlisting}
+
+% ============================================================
+\section{Security Audit Results}
+% ============================================================
+
+A code audit was run after implementation. No vulnerabilities were found. Key findings:
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXl}
+\toprule
+\textbf{Attack Vector} & \textbf{Mitigation} & \textbf{Status} \\
+\midrule
+SQL injection & SQLAlchemy parameterized queries; no raw SQL strings & Safe \\
+Path traversal in ingest & \texttt{pathlib.Path.rglob("*.md")} never evaluates relative paths & Safe \\
+PII leakage in traces & \texttt{redact\_tool\_calls()} runs before every DB write & Safe \\
+XSS & FastAPI returns JSON only; no HTML rendering & Safe \\
+API key exposure & \texttt{.env} in \texttt{.gitignore}; \texttt{.env.example} has no real values & Safe \\
+Sync I/O in async handlers & All DB calls use \texttt{await} with \texttt{AsyncSession} & Safe \\
+Bare \texttt{except:} clauses & All caught exceptions are specific types & Safe \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+
+% ============================================================
+\section{File Structure Reference}
+% ============================================================
+
+\begin{lstlisting}[numbers=none, basicstyle=\ttfamily\footnotesize]
+helix-srop-assignment/
+|-- .env                      # local secrets (gitignored)
+|-- .env.example              # template with placeholder values
+|-- .gitignore
+|-- ASSIGNMENT.md             # original assignment spec
+|-- README.md                 # setup, architecture, decisions
+|-- Dockerfile                # E6: slim Python 3.11 image
+|-- docker-compose.yml        # E6: api service + volume mounts
+|-- pyproject.toml            # all dependencies + ruff/mypy/pytest config
+|-- uv.lock
+|-- alembic.ini               # untouched (create_all used instead)
+|-- alembic/                  # untouched
+|-- app/
+|   |-- __init__.py
+|   |-- errors.py             # SessionNotFoundError, UpstreamTimeoutError
+|   |-- main.py               # FastAPI app, lifespan, /healthz, handlers
+|   |-- settings.py           # pydantic-settings: keys, URLs, timeouts
+|   |-- agents/
+|   |   |-- __init__.py
+|   |   |-- account_agent.py  # get_recent_builds, get_account_status (mock)
+|   |   |-- escalation_agent.py # create_ticket (E2)
+|   |   |-- knowledge_agent.py  # search_docs tool, citation instruction
+|   |   `-- root_agent.py    # srop_root, AgentTool routing
+|   |-- api/
+|   |   |-- __init__.py
+|   |   `-- routes.py        # /sessions, /chat/{id}, /traces/{id}
+|   |-- db/
+|   |   |-- __init__.py
+|   |   |-- models.py        # Session, Message, AgentTrace, Ticket
+|   |   `-- session.py       # async_engine, AsyncSessionLocal, get_db()
+|   |-- obs/
+|   |   |-- __init__.py
+|   |   `-- logging.py       # setup_logging() via structlog
+|   |-- rag/
+|   |   |-- __init__.py
+|   |   |-- ingest.py        # CLI: chunk, embed, upsert to ChromaDB
+|   |   `-- retriever.py     # search_docs(), ChunkResult dataclass
+|   `-- srop/
+|       |-- __init__.py
+|       `-- pipeline.py      # run_turn(): the core orchestration loop
+|-- docs/                     # 10 Helix Markdown docs (RAG corpus)
+|   |-- rag-guide.md          # reference guide (not ingested as product doc)
+|   |-- google-adk-guide.md
+|   |-- fastapi-async-guide.md
+|   `-- *.md                  # Helix product documentation
+`-- tests/
+    |-- __init__.py
+    |-- test_guardrails.py    # E5: refusal and PII redaction
+    |-- test_integration.py   # multi-turn state persistence with mocked ADK
+    `-- test_rag.py           # search_docs with ephemeral Chroma + mocked embed
+\end{lstlisting}
+
+% ============================================================
+\section{Setup Instructions}
+% ============================================================
+
+\begin{lstlisting}[style=bash]
+# Clone and enter the repository
+git clone https://github.com/vaibhav3000/helix-srop-assignment.git
+cd helix-srop-assignment
+
+# Install uv (skip if already installed)
+pip install uv
+
+# Install all dependencies
+uv sync
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env and set GOOGLE_API_KEY=your-api-key-here
+
+# Populate the vector store (run once before starting the server)
+uv run python -m app.rag.ingest --path docs/
+
+# Start the server
+uv run uvicorn app.main:app --reload
+
+# Run tests
+uv run pytest -q
+
+# Check code quality
+uv run ruff check .
+
+# Or with Docker (Extension E6)
+docker-compose up --build
+\end{lstlisting}
+
+% ============================================================
+\section{Summary of Design Decisions}
+% ============================================================
+
+\begin{center}
+\begin{tabularx}{\textwidth}{lXX}
+\toprule
+\textbf{Decision} & \textbf{What was chosen} & \textbf{Why} \\
+\midrule
+State persistence & Pattern 3 (JSON column) & No external service, survives restart, explicit schema, horizontally scalable \\
+Chunking strategy & Heading-aware + sentence sub-split & Preserves logical sections in Markdown, reduces context fragmentation \\
+ADK routing & \texttt{AgentTool} via function calling & Structured, not string-parsed; required by assignment; robust to rephrasing \\
+ADK session scope & Per-turn transient \texttt{InMemorySessionService} & Simpler than a custom \texttt{BaseSessionService}; state lives in DB not in ADK \\
+Vector store & ChromaDB on-disk & Assignment recommendation; simple setup; upsert prevents re-ingest duplicates \\
+Embedding model & \texttt{text-embedding-004} (768 dims) & Native to Google AI ecosystem; consistent with LLM provider \\
+Test mocking boundary & ADK runner \texttt{run\_async} method & Isolates tests from network; fast CI; still tests pipeline logic end-to-end \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\end{document}

@@ -14,7 +14,7 @@ router = APIRouter(prefix="/v1")
 
 class CreateSessionRequest(BaseModel):
     user_id: str
-    plan_tier: Literal["free", "pro", "enterprise"]
+    plan_tier: Literal["free", "pro", "enterprise"] = "free"
 
 
 class CreateSessionResponse(BaseModel):
@@ -41,13 +41,12 @@ async def create_session(request: CreateSessionRequest, db: AsyncSession = Depen
     db.add(db_session)
     await db.commit()
     await db.refresh(db_session)
-    
+
     return CreateSessionResponse(session_id=db_session.session_id)
 
 
 @router.post("/chat/{session_id}", response_model=ChatResponse)
 async def chat(session_id: str, request: ChatRequest, db: AsyncSession = Depends(get_db)):
-    # Exception handling is done in main.py globally or could be caught here
     result = await run_turn(session_id=session_id, user_message=request.content, db=db)
     return ChatResponse(
         reply=result.reply,
@@ -61,10 +60,10 @@ async def get_trace(trace_id: str, db: AsyncSession = Depends(get_db)):
     stmt = select(AgentTrace).where(AgentTrace.trace_id == trace_id)
     result = await db.execute(stmt)
     trace = result.scalar_one_or_none()
-    
+
     if not trace:
         raise HTTPException(status_code=404, detail="Trace not found")
-        
+
     return {
         "trace_id": trace.trace_id,
         "session_id": trace.session_id,

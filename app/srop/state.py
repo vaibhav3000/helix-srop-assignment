@@ -7,7 +7,8 @@ Keep it small — every turn loads and saves this.
 TODO: extend if your design requires additional fields.
 """
 from typing import Literal
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel
 
 
 class SessionState(BaseModel):

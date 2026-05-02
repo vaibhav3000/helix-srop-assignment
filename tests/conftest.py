@@ -8,14 +8,12 @@ Key fixtures:
 """
 import pytest
 import pytest_asyncio
-from fastapi.testclient import TestClient
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db.models import Base
 from app.db.session import get_db
 from app.main import app
-
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -49,26 +47,41 @@ async def client(db):
 
 @pytest.fixture
 def mock_adk(monkeypatch):
-    """
-    Patch the ADK pipeline so tests don't call the real LLM.
+    class FakeEvent:
+        def __init__(self, is_final, author, text, event_type="text_response", **kwargs):
+            self.type = event_type
+            self.author = author
+            self._is_final = is_final
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+                
+            class Parts:
+                def __init__(self, text):
+                    self.text = text
+            class Content:
+                def __init__(self, text):
+                    self.parts = [Parts(text)]
+            self.content = Content(text)
+            
+        def is_final_response(self):
+            return self._is_final
 
-    TODO for candidate: patch at the ADK boundary (not at the HTTP layer).
-    The mock should:
-    1. Accept a user message
-    2. Return a canned response with a specified routed_to value
-    3. Allow tests to assert which sub-agent was called
+    async def mock_run_async(self, user_id, session_id, new_message, *args, **kwargs):
+        content = new_message.get("parts", [{}])[0].get("text", "")
+        
+        async def _stream():
+            if "rotate" in content.lower():
+                from dataclasses import dataclass
+                @dataclass
+                class DummyChunk:
+                    chunk_id: str
+                
+                yield FakeEvent(False, None, "", event_type="tool_call", tool_name="search_docs", tool_args={"query": "deploy key"}, id="call_1")
+                yield FakeEvent(False, None, "", event_type="tool_result", tool_call_id="call_1", tool_name="search_docs", result=[DummyChunk("test_chunk_1")])
+                yield FakeEvent(True, "knowledge", "To rotate a deploy key...", event_type="text_response")
+            else:
+                yield FakeEvent(True, "account", "Your plan tier is pro.", event_type="text_response")
+                
+        return _stream()
 
-    Example:
-        def mock_run(session_id, message, db):
-            if "rotate" in message.lower():
-                return PipelineResult(
-                    content="To rotate a deploy key...",
-                    routed_to="knowledge",
-                    trace_id="test-trace-001",
-                )
-            ...
-
-        monkeypatch.setattr("app.srop.pipeline.run", mock_run)
-    """
-    # TODO: implement mock_adk fixture
-    pass
+    monkeypatch.setattr("google.adk.runners.InMemoryRunner.run_async", mock_run_async)
