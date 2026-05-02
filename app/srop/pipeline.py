@@ -9,6 +9,7 @@ import structlog
 from google.adk.runners import InMemoryRunner
 from google.adk.sessions import InMemorySessionService
 from sqlalchemy.ext.asyncio import AsyncSession
+from google.genai.types import Content, Part
 
 from app.agents.root_agent import root_agent
 from app.db.models import AgentTrace, Message, Session
@@ -131,9 +132,9 @@ async def run_turn(session_id: str, user_message: str, db: AsyncSession) -> Turn
     turn_count = state.get("turn_count", 0)
     last_agent = state.get("last_agent", None)
 
-    # build a fresh ADK runner for this turn
-    runner = InMemoryRunner(agent=root_agent)
-    session_svc = InMemorySessionService()
+    # build a fresh ADK runner for this turn; InMemoryRunner owns its session service
+    runner = InMemoryRunner(agent=root_agent, app_name="helix_srop")
+    session_svc = runner.session_service
     adk_session = await session_svc.create_session(app_name="helix_srop", user_id=user_id)
     adk_session.state.update({
         "user_id": user_id,
@@ -142,19 +143,12 @@ async def run_turn(session_id: str, user_message: str, db: AsyncSession) -> Turn
         "last_agent": last_agent,
     })
 
-    # kick off the LLM with a timeout guard
-    try:
-        response = await asyncio.wait_for(
-            runner.run_async(
-                user_id=user_id,
-                session_id=adk_session.id,
-                new_message={"role": "user", "parts": [{"text": user_message}]},
-            ),
-            timeout=settings.LLM_TIMEOUT_SECONDS,
-        )
-    except TimeoutError:
-        logger.error("upstream_timeout", session_id=session_id)
-        raise UpstreamTimeoutError(f"LLM did not respond within {settings.LLM_TIMEOUT_SECONDS}s")
+    # kick off the LLM
+    response = runner.run_async(
+        user_id=user_id,
+        session_id=adk_session.id,
+        new_message=Content(role="user", parts=[Part.from_text(text=user_message)]),
+    )
 
     # walk the event stream
     final_reply = "No response"
@@ -162,41 +156,46 @@ async def run_turn(session_id: str, user_message: str, db: AsyncSession) -> Turn
     tool_calls: list[dict] = []
     retrieved_chunk_ids: list[str] = []
 
-    async for event in response:
-        if getattr(event, "type", None) == "tool_call":
-            tool_calls.append({
-                "tool_name": getattr(event, "tool_name", ""),
-                "args": getattr(event, "tool_args", {}),
-                "result": None,
-                "call_id": getattr(event, "id", ""),
-            })
+    try:
+        async with asyncio.timeout(settings.LLM_TIMEOUT_SECONDS):
+            async for event in response:
+                if getattr(event, "type", None) == "tool_call":
+                    tool_calls.append({
+                        "tool_name": getattr(event, "tool_name", ""),
+                        "args": getattr(event, "tool_args", {}),
+                        "result": None,
+                        "call_id": getattr(event, "id", ""),
+                    })
 
-        if getattr(event, "type", None) == "tool_result":
-            call_id = getattr(event, "tool_call_id", getattr(event, "id", ""))
-            for tc in tool_calls:
-                # match by call_id, fall back to tool name
-                if tc["result"] is None and (tc.get("call_id") == call_id or tc["tool_name"] == getattr(event, "tool_name", "")):
-                    raw = getattr(event, "result", getattr(event, "content", str(event)))
-                    # Serialize dataclasses (like ChunkResult) to dictionaries so they can be JSON-encoded in SQLite
-                    if isinstance(raw, list) and raw and dataclasses.is_dataclass(raw[0]):
-                        tc["result"] = [dataclasses.asdict(x) for x in raw]
-                    else:
-                        tc["result"] = raw
+                if getattr(event, "type", None) == "tool_result":
+                    call_id = getattr(event, "tool_call_id", getattr(event, "id", ""))
+                    for tc in tool_calls:
+                        # match by call_id, fall back to tool name
+                        if tc["result"] is None and (tc.get("call_id") == call_id or tc["tool_name"] == getattr(event, "tool_name", "")):
+                            raw = getattr(event, "result", getattr(event, "content", str(event)))
+                            # Serialize dataclasses (like ChunkResult) to dictionaries so they can be JSON-encoded in SQLite
+                            if isinstance(raw, list) and raw and dataclasses.is_dataclass(raw[0]):
+                                tc["result"] = [dataclasses.asdict(x) for x in raw]
+                            else:
+                                tc["result"] = raw
 
-                    # Extract chunk_ids specifically for tracking RAG retrieval effectiveness
-                    if tc["tool_name"] == "search_docs" and isinstance(tc["result"], list):
-                        for chunk in tc["result"]:
-                            if isinstance(chunk, dict) and "chunk_id" in chunk:
-                                retrieved_chunk_ids.append(chunk["chunk_id"])
-                            elif hasattr(chunk, "chunk_id"):
-                                retrieved_chunk_ids.append(chunk.chunk_id)
-                    break
+                            # Extract chunk_ids specifically for tracking RAG retrieval effectiveness
+                            if tc["tool_name"] == "search_docs" and isinstance(tc["result"], list):
+                                for chunk in tc["result"]:
+                                    if isinstance(chunk, dict) and "chunk_id" in chunk:
+                                        retrieved_chunk_ids.append(chunk["chunk_id"])
+                                    elif hasattr(chunk, "chunk_id"):
+                                        retrieved_chunk_ids.append(chunk.chunk_id)
+                            break
 
-        if hasattr(event, "is_final_response") and event.is_final_response():
-            if getattr(event, "author", None):
-                routed_to = event.author
-            if hasattr(event, "content") and hasattr(event.content, "parts") and event.content.parts:
-                final_reply = event.content.parts[0].text
+                if hasattr(event, "is_final_response") and event.is_final_response():
+                    if getattr(event, "author", None):
+                        routed_to = event.author
+                    if hasattr(event, "content") and hasattr(event.content, "parts") and event.content.parts:
+                        final_reply = event.content.parts[0].text
+    except TimeoutError:
+        logger.error("upstream_timeout", session_id=session_id)
+        raise UpstreamTimeoutError(f"LLM did not respond within {settings.LLM_TIMEOUT_SECONDS}s")
 
     # write the trace
     trace_id = str(uuid.uuid4())
