@@ -1,13 +1,14 @@
-from typing import Literal
+from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from app.db.models import AgentTrace, Session
+from app.db.models import AgentTrace, Session, IdempotencyRecord
 from app.db.session import get_db
-from app.srop.pipeline import run_turn
+from app.srop.pipeline import run_turn, run_turn_stream
 
 router = APIRouter(prefix="/v1")
 
@@ -46,12 +47,42 @@ async def create_session(request: CreateSessionRequest, db: AsyncSession = Depen
 
 
 @router.post("/chat/{session_id}", response_model=ChatResponse)
-async def chat(session_id: str, request: ChatRequest, db: AsyncSession = Depends(get_db)):
+async def chat(
+    session_id: str, 
+    request: ChatRequest, 
+    db: AsyncSession = Depends(get_db),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
+):
+    if idempotency_key:
+        # Check for existing response
+        stmt = select(IdempotencyRecord).where(IdempotencyRecord.idempotency_key == idempotency_key)
+        result = await db.execute(stmt)
+        record = result.scalar_one_or_none()
+        if record:
+            return ChatResponse(**record.response_json)
+
     result = await run_turn(session_id=session_id, user_message=request.content, db=db)
-    return ChatResponse(
-        reply=result.reply,
-        routed_to=result.routed_to,
-        trace_id=result.trace_id
+    
+    response_data = {
+        "reply": result.reply,
+        "routed_to": result.routed_to,
+        "trace_id": result.trace_id
+    }
+    
+    if idempotency_key:
+        db_record = IdempotencyRecord(idempotency_key=idempotency_key, response_json=response_data)
+        db.add(db_record)
+        await db.commit()
+
+    return ChatResponse(**response_data)
+
+
+@router.post("/chat/{session_id}/stream")
+async def chat_stream(session_id: str, request: ChatRequest, db: AsyncSession = Depends(get_db)):
+    """Streams the assistant's reply using Server-Sent Events (SSE)."""
+    return StreamingResponse(
+        run_turn_stream(session_id=session_id, user_message=request.content, db=db),
+        media_type="text/event-stream"
     )
 
 

@@ -63,3 +63,11 @@ class Ticket(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
     session: Mapped["Session"] = relationship(back_populates="tickets")
+
+
+class IdempotencyRecord(Base):
+    __tablename__ = "idempotency_records"
+
+    idempotency_key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    response_json: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)

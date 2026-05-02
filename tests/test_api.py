@@ -53,3 +53,33 @@ async def test_knowledge_query_routes_correctly(client, mock_adk):
 async def test_session_not_found_returns_404(client):
     resp = await client.post("/v1/chat/nonexistent-id", json={"content": "hello"})
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_idempotency(client, mock_adk):
+    # Create session
+    sess = await client.post("/v1/sessions", json={"user_id": "u_test_idempotency"})
+    session_id = sess.json()["session_id"]
+
+    # Turn 1 with Idempotency-Key
+    import uuid
+    idemp_key = str(uuid.uuid4())
+    r1 = await client.post(
+        f"/v1/chat/{session_id}", 
+        json={"content": "How do I rotate a deploy key?"},
+        headers={"Idempotency-Key": idemp_key}
+    )
+    assert r1.status_code == 200
+    r1_json = r1.json()
+
+    # Turn 2 with SAME Idempotency-Key
+    r2 = await client.post(
+        f"/v1/chat/{session_id}", 
+        json={"content": "Different content that should be ignored"},
+        headers={"Idempotency-Key": idemp_key}
+    )
+    assert r2.status_code == 200
+    r2_json = r2.json()
+
+    # Should be exactly the same response
+    assert r1_json == r2_json

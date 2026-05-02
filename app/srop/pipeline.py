@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import structlog
 from google.adk.runners import InMemoryRunner
 from google.adk.sessions import InMemorySessionService
+from typing import AsyncGenerator, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from google.genai.types import Content, Part
 
@@ -223,3 +224,128 @@ async def run_turn(session_id: str, user_message: str, db: AsyncSession) -> Turn
     await db.commit()
 
     return TurnResult(reply=final_reply, routed_to=routed_to, trace_id=trace_id)
+
+
+async def run_turn_stream(session_id: str, user_message: str, db: AsyncSession) -> AsyncGenerator[str, None]:
+    """Asynchronous generator that streams LLM tokens and handles state persistence at the end.
+    
+    Yields:
+        SSE-formatted JSON strings containing 'token' or the final 'result'.
+    """
+    start_time = time.time()
+
+    # Guardrails (Synchronous check, but we stream the refusal)
+    refusal = check_guardrails(user_message)
+    if refusal:
+        db.add(Message(session_id=session_id, role="user", content=user_message))
+        db.add(Message(session_id=session_id, role="assistant", content=refusal))
+        db_session = await db.get(Session, session_id)
+        if db_session:
+            db_session.state["turn_count"] = db_session.state.get("turn_count", 0) + 1
+            await db.commit()
+        
+        yield f"data: {{\"reply\": \"{refusal}\", \"routed_to\": \"guardrails\", \"trace_id\": \"\"}}\n\n"
+        return
+
+    # Load session
+    db_session = await db.get(Session, session_id)
+    if not db_session:
+        raise SessionNotFoundError(f"Session {session_id} not found")
+
+    state = db_session.state or {}
+    user_id = db_session.user_id
+    plan_tier = db_session.plan_tier
+    turn_count = state.get("turn_count", 0)
+    last_agent = state.get("last_agent", None)
+
+    runner = InMemoryRunner(agent=root_agent, app_name="helix_srop")
+    session_svc = runner.session_service
+    adk_session = await session_svc.create_session(app_name="helix_srop", user_id=user_id)
+    adk_session.state.update({
+        "user_id": user_id,
+        "plan_tier": plan_tier,
+        "turn_count": turn_count,
+        "last_agent": last_agent,
+    })
+
+    response = runner.run_async(
+        user_id=user_id,
+        session_id=adk_session.id,
+        new_message=Content(role="user", parts=[Part.from_text(text=user_message)]),
+    )
+
+    full_reply = []
+    routed_to = "srop_root"
+    tool_calls: list[dict] = []
+    retrieved_chunk_ids: list[str] = []
+
+    try:
+        async with asyncio.timeout(settings.LLM_TIMEOUT_SECONDS):
+            async for event in response:
+                # Track tool calls and results for the final trace
+                if getattr(event, "type", None) == "tool_call":
+                    tool_calls.append({
+                        "tool_name": getattr(event, "tool_name", ""),
+                        "args": getattr(event, "tool_args", {}),
+                        "result": None,
+                        "call_id": getattr(event, "id", ""),
+                    })
+
+                if getattr(event, "type", None) == "tool_result":
+                    call_id = getattr(event, "tool_call_id", getattr(event, "id", ""))
+                    for tc in tool_calls:
+                        if tc["result"] is None and (tc.get("call_id") == call_id or tc["tool_name"] == getattr(event, "tool_name", "")):
+                            raw = getattr(event, "result", getattr(event, "content", str(event)))
+                            if isinstance(raw, list) and raw and dataclasses.is_dataclass(raw[0]):
+                                tc["result"] = [dataclasses.asdict(x) for x in raw]
+                            else:
+                                tc["result"] = raw
+                            
+                            if tc["tool_name"] == "search_docs" and isinstance(tc["result"], list):
+                                for chunk in tc["result"]:
+                                    if isinstance(chunk, dict) and "chunk_id" in chunk:
+                                        retrieved_chunk_ids.append(chunk["chunk_id"])
+                            break
+
+                # Stream parts/tokens as they arrive
+                if hasattr(event, "content") and hasattr(event.content, "parts") and event.content.parts:
+                    for part in event.content.parts:
+                        if hasattr(part, "text") and part.text:
+                            full_reply.append(part.text)
+                            yield f"data: {{\"token\": {part.text!r}}}\n\n"
+
+                if hasattr(event, "is_final_response") and event.is_final_response():
+                    if getattr(event, "author", None):
+                        routed_to = event.author
+
+    except TimeoutError:
+        logger.error("upstream_timeout", session_id=session_id)
+        yield f"data: {{\"error\": \"LLM timeout\"}}\n\n"
+        return
+
+    # Finalize state and trace
+    trace_id = str(uuid.uuid4())
+    latency_ms = int((time.time() - start_time) * 1000)
+    final_text = "".join(full_reply)
+
+    db.add(AgentTrace(
+        trace_id=trace_id,
+        session_id=session_id,
+        routed_to=routed_to,
+        tool_calls=redact_tool_calls(tool_calls),
+        retrieved_chunk_ids=retrieved_chunk_ids,
+        latency_ms=latency_ms,
+    ))
+    db.add(Message(session_id=session_id, role="user", content=user_message))
+    db.add(Message(session_id=session_id, role="assistant", content=final_text))
+
+    db_session.state["turn_count"] = turn_count + 1
+    db_session.state["last_agent"] = routed_to
+    if "last_ticket_id" in adk_session.state:
+        db_session.state["last_ticket_id"] = adk_session.state["last_ticket_id"]
+    db_session.state = dict(db_session.state)
+
+    await db.commit()
+
+    yield f"data: {{\"reply\": {final_text!r}, \"routed_to\": \"{routed_to}\", \"trace_id\": \"{trace_id}\"}}\n\n"
+

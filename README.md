@@ -58,10 +58,10 @@ I chose ChromaDB because it offers a frictionless, in-process, zero-setup experi
 | **Total** | **~4 hours** |
 
 ## Extensions Completed
-- [ ] E1: Idempotency
+- [x] E1: Idempotency
 - [x] E2: Escalation agent
-- [ ] E3: Streaming SSE
-- [ ] E4: Reranking
+- [x] E3: Streaming SSE
+- [x] E4: Reranking
 - [x] E5: Guardrails
 - [x] E6: Docker
-- [ ] E7: Eval harness
+- [x] E7: Eval harness

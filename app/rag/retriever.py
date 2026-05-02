@@ -15,16 +15,14 @@ class ChunkResult:
 
 
 # search the chroma collection and normalize distances to [0, 1]
-async def search_docs(query: str, k: int = 5) -> list[ChunkResult]:
-    """Generates an embedding for a user query, searches ChromaDB, and returns top-k matching document chunks.
-
-    Args:
-        query: The user's search string.
-        k: The maximum number of document chunks to return. Defaults to 5.
-
-    Returns:
-        A list of ChunkResult objects containing the chunk text, metadata, and normalized similarity score.
+async def search_docs(query: str, k: int = 5, rerank: bool = True) -> list[ChunkResult]:
+    """Generates an embedding for a user query, searches ChromaDB, and optionally reranks matching chunks.
+    
+    Initial retrieval fetches k*2 (max 10) candidates, which are then reranked by the LLM 
+    to find the top-k most relevant pieces of information.
     """
+    initial_k = min(10, k * 2) if rerank else k
+    
     if settings.GOOGLE_API_KEY:
         genai.configure(api_key=settings.GOOGLE_API_KEY)
         resp = genai.embed_content(
@@ -46,7 +44,7 @@ async def search_docs(query: str, k: int = 5) -> list[ChunkResult]:
 
     results = collection.query(
         query_embeddings=[query_embedding],
-        n_results=k,
+        n_results=initial_k,
         include=["documents", "metadatas", "distances"],
     )
 
@@ -67,4 +65,47 @@ async def search_docs(query: str, k: int = 5) -> list[ChunkResult]:
                 metadata=metadatas[i] or {},
             ))
 
+    if rerank and out:
+        return await _rerank_chunks(query, out, k)
+
     return out
+
+
+async def _rerank_chunks(query: str, chunks: list[ChunkResult], k: int) -> list[ChunkResult]:
+    """Uses the LLM as a cross-encoder to select the top-k most relevant chunks from a candidate list."""
+    if not settings.GOOGLE_API_KEY:
+        return chunks[:k]
+
+    model = genai.GenerativeModel("gemini-1.5-flash") # Use a fast model for reranking
+    
+    # Construct a prompt for reranking
+    context = "\n\n".join([f"Chunk {i}:\n{c.text}" for i, c in enumerate(chunks)])
+    prompt = f"""Given the user query: "{query}"
+Rank the following document chunks by relevance. 
+Return only a comma-separated list of the indices (e.g. 2, 0, 1) in order of most to least relevant.
+Max {k} indices.
+
+{context}"""
+
+    try:
+        resp = await asyncio.to_thread(model.generate_content, prompt)
+        text = resp.text.strip()
+        # Parse indices
+        indices = [int(i.strip()) for i in text.split(",") if i.strip().isdigit()]
+        
+        reranked = []
+        seen = set()
+        for idx in indices:
+            if 0 <= idx < len(chunks) and idx not in seen:
+                reranked.append(chunks[idx])
+                seen.add(idx)
+        
+        # Fallback if LLM failed to return valid indices
+        if not reranked:
+            return chunks[:k]
+            
+        return reranked[:k]
+    except Exception:
+        # Fallback to initial ordering on error
+        return chunks[:k]
+
