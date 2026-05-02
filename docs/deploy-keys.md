@@ -10,7 +10,7 @@ Deploy keys give your CI/CD pipeline read-only (or read-write) access to a speci
 
 ## Creating a Deploy Key
 
-1. Navigate to **Settings → Security → Deploy Keys**.
+1. Navigate to **Settings -> Security -> Deploy Keys**.
 2. Click **New Deploy Key**.
 3. Paste your public SSH key (Ed25519 recommended: `ssh-keygen -t ed25519 -C "ci@yourorg"`).
 4. Choose **Read-only** unless your pipeline needs to push tags or commits back.
@@ -26,12 +26,12 @@ Rotation should happen every 90 days or immediately after a suspected compromise
 # Step 1: Generate new key pair (do NOT reuse old passphrase)
 ssh-keygen -t ed25519 -f ~/.ssh/helix_deploy_new -C "ci-rotated-$(date +%Y%m%d)"
 
-# Step 2: Add the new public key in the Helix UI (Settings → Deploy Keys → New)
+# Step 2: Add the new public key in the Helix UI (Settings -> Deploy Keys -> New)
 # Keep the old key active during this step.
 
 # Step 3: Update your CI/CD secret store with the new private key.
-#   GitHub Actions: Settings → Secrets → HELIX_DEPLOY_KEY
-#   GitLab CI:      Settings → CI/CD → Variables → HELIX_DEPLOY_KEY
+#   GitHub Actions: Settings -> Secrets -> HELIX_DEPLOY_KEY
+#   GitLab CI:      Settings -> CI/CD -> Variables -> HELIX_DEPLOY_KEY
 
 # Step 4: Trigger a test pipeline run to confirm the new key works.
 

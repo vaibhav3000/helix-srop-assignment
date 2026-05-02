@@ -32,7 +32,7 @@ async def search_docs(query: str, k: int = 5, rerank: bool = True) -> list[Chunk
         )
         query_embedding = resp["embedding"]
     else:
-        # no key → dummy vector
+        # no key -> dummy vector
         query_embedding = [0.1] * 768
 
     chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PATH)

@@ -57,7 +57,7 @@ def chunk_markdown(text: str, max_tokens: int = 400) -> list[str]:
             final_chunks.append(chunk)
             continue
 
-        # section too big — break at sentence boundaries
+        # section too big - break at sentence boundaries
         sentences = chunk.split(". ")
         current: list[str] = []
         current_len = 0

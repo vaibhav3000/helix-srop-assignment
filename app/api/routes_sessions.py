@@ -1,5 +1,5 @@
 """
-POST /v1/sessions — create a session.
+POST /v1/sessions - create a session.
 """
 import uuid
 

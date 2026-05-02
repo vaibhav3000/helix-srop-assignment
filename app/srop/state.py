@@ -1,8 +1,8 @@
 """
-Session state schema — persisted in sessions.state (JSON column).
+Session state schema - persisted in sessions.state (JSON column).
 
 Only store what the agent CANNOT re-derive from message history.
-Keep it small — every turn loads and saves this.
+Keep it small - every turn loads and saves this.
 
 TODO: extend if your design requires additional fields.
 """

@@ -1,12 +1,12 @@
 ---
-title: FastAPI + Async Python — Patterns for This Assignment
+title: FastAPI + Async Python - Patterns for This Assignment
 product_area: reference
 tags: [fastapi, async, sqlalchemy, pydantic, patterns]
 ---
 
 # FastAPI + Async Python: Patterns for This Assignment
 
-This guide covers the specific async patterns required. Assumes you know basic Python — focuses on the parts that trip people up.
+This guide covers the specific async patterns required. Assumes you know basic Python - focuses on the parts that trip people up.
 
 ---
 
@@ -17,7 +17,7 @@ The SROP pipeline makes multiple I/O calls per request:
 - Vector store query (10–50ms)
 - DB read/write (1–10ms)
 
-If you use synchronous (blocking) code in an async handler, FastAPI's event loop is blocked — no other requests can be served while you wait. Under load, this causes request queuing and timeouts.
+If you use synchronous (blocking) code in an async handler, FastAPI's event loop is blocked - no other requests can be served while you wait. Under load, this causes request queuing and timeouts.
 
 **Rule:** Everything that does I/O must be `async def` or run in a thread pool.
 
@@ -54,7 +54,7 @@ class CreateSessionResponse(BaseModel):
     user_id: str
 ```
 
-Pydantic v2 validates on instantiation. If `user_id` is empty, FastAPI returns a 422 automatically — you don't write that check.
+Pydantic v2 validates on instantiation. If `user_id` is empty, FastAPI returns a 422 automatically - you don't write that check.
 
 ### Dependency injection
 
@@ -107,7 +107,7 @@ engine = create_async_engine("sqlite+aiosqlite:///./app.db")
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 ```
 
-`expire_on_commit=False` is important — without it, accessing model attributes after a commit raises `DetachedInstanceError`.
+`expire_on_commit=False` is important - without it, accessing model attributes after a commit raises `DetachedInstanceError`.
 
 ### Querying
 
@@ -156,7 +156,7 @@ await db.commit()
 ### Common mistake: using sync operations in async handlers
 
 ```python
-# WRONG — blocks the event loop
+# WRONG - blocks the event loop
 @router.get("/sessions/{id}")
 async def get_session(id: str, db: AsyncSession = Depends(get_db)):
     session = db.execute(select(Session).where(...))  # missing await
@@ -269,7 +269,7 @@ try:
     await db.commit()
 except IntegrityError:
     await db.rollback()
-    # Key conflict — look up and return the existing response
+    # Key conflict - look up and return the existing response
     return await handle_idempotency(session_id, idempotency_key, db)
 ```
 

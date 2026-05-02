@@ -1,5 +1,5 @@
 """
-GET /v1/traces/{trace_id} — return the structured trace for one pipeline turn.
+GET /v1/traces/{trace_id} - return the structured trace for one pipeline turn.
 """
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel

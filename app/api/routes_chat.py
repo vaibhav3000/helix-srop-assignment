@@ -1,5 +1,5 @@
 """
-POST /v1/chat/{session_id} — send a user message, get assistant reply.
+POST /v1/chat/{session_id} - send a user message, get assistant reply.
 """
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -31,8 +31,8 @@ async def chat(
     Run one turn of the SROP pipeline.
 
     Error cases:
-    - Session not found → 404
-    - LLM timeout → 504
+    - Session not found -> 404
+    - LLM timeout -> 504
     """
     result = await pipeline.run(session_id, body.content, db)
     return ChatResponse(reply=result.content, routed_to=result.routed_to, trace_id=result.trace_id)

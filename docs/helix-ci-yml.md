@@ -115,7 +115,7 @@ pipelines:
 | `${{ git.tag }}` | Tag name (if triggered by a tag) |
 | `${{ pipeline.id }}` | Unique pipeline run ID |
 | `${{ pipeline.trigger }}` | What triggered the run: `push`, `pr`, `schedule`, `manual` |
-| `${{ secrets.NAME }}` | Encrypted secret from Settings → CI/CD Variables |
+| `${{ secrets.NAME }}` | Encrypted secret from Settings -> CI/CD Variables |
 
 ## Common Patterns
 

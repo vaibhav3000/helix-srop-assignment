@@ -30,7 +30,7 @@ curl -X POST https://api.helix.example/v1/repos/{repo_id}/builds \
   -d '{"ref": "main", "pipeline": "deploy"}'
 ```
 
-**Via UI:** Repository → Builds → Run Pipeline → select branch and pipeline.
+**Via UI:** Repository -> Builds -> Run Pipeline -> select branch and pipeline.
 
 ## Viewing Build Logs
 
@@ -56,16 +56,16 @@ Artifact retention mirrors log retention per plan.
 
 ## Debugging Failed Builds
 
-1. Open the failed build → click the failed step to expand logs.
+1. Open the failed build -> click the failed step to expand logs.
 2. Look for exit code in the final line: `exit status 1`.
-3. Check environment variables are set: **Settings → CI/CD Variables**.
+3. Check environment variables are set: **Settings -> CI/CD Variables**.
 4. Reproduce locally: `helix run --local --pipeline test --ref HEAD`.
 
 Common failure patterns:
 
 | Pattern | Cause |
 |---------|-------|
-| `Cannot connect to Docker daemon` | Runner misconfigured — contact support |
+| `Cannot connect to Docker daemon` | Runner misconfigured - contact support |
 | `No such file or directory: .helix-ci.yml` | Missing config file in repo root |
 | `Artifact upload failed: 403` | Artifact Registry permissions not set |
 | `Timeout after 3600s` | Build exceeded plan time limit; optimize or upgrade plan |

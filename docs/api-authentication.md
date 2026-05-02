@@ -12,14 +12,14 @@ All Helix API requests require authentication. Three methods are supported depen
 
 Best for: scripts, local development, one-off automation.
 
-**Create a PAT:** Settings → Developer → Personal Access Tokens → New Token.
+**Create a PAT:** Settings -> Developer -> Personal Access Tokens -> New Token.
 
 Scopes available:
-- `read:repos` — read repository metadata
-- `write:repos` — push, create branches
-- `read:builds` — view build status and logs
-- `write:builds` — trigger builds, cancel
-- `admin:org` — manage organization settings
+- `read:repos` - read repository metadata
+- `write:repos` - push, create branches
+- `read:builds` - view build status and logs
+- `write:builds` - trigger builds, cancel
+- `admin:org` - manage organization settings
 
 **Usage:**
 ```bash
@@ -77,7 +77,7 @@ POST /v1/orgs/{org_id}/service-accounts
 { "name": "my-deploy-bot", "scopes": ["read:repos", "write:builds"] }
 ```
 
-Returns a `token` — store it in your secret manager immediately. It is shown only once.
+Returns a `token` - store it in your secret manager immediately. It is shown only once.
 
 ## Token Storage Best Practices
 

@@ -14,12 +14,12 @@ Available pools:
 
 | Pool | CPU | RAM | Storage | Use case |
 |------|-----|-----|---------|----------|
-| `standard` | 2 vCPU | 7 GB | 14 GB SSD | Default — most workloads |
+| `standard` | 2 vCPU | 7 GB | 14 GB SSD | Default - most workloads |
 | `large` | 8 vCPU | 32 GB | 100 GB SSD | Heavy builds, parallel testing |
 | `gpu` | 4 vCPU + T4 GPU | 15 GB | 50 GB SSD | ML training, inference benchmarks |
 | `macos` | M1 4-core | 8 GB | 100 GB | iOS/macOS builds |
 
-Cloud runners are ephemeral — a fresh VM is provisioned per build. No state persists between builds unless you use caching or artifacts.
+Cloud runners are ephemeral - a fresh VM is provisioned per build. No state persists between builds unless you use caching or artifacts.
 
 ## Self-Hosted Runners
 
@@ -64,12 +64,12 @@ provider: aws  # or gcp, azure, kubernetes
 min_runners: 1
 max_runners: 20
 idle_timeout: 300  # seconds before idle runner terminates
-scale_up_threshold: 3  # jobs waiting → add runner
+scale_up_threshold: 3  # jobs waiting -> add runner
 ```
 
 ## Runner Security
 
-- Cloud runners run in isolated VMs — no cross-build data leakage.
+- Cloud runners run in isolated VMs - no cross-build data leakage.
 - Self-hosted runners should run with a dedicated non-root user: `helix-runner`.
 - Network egress: runners need outbound HTTPS to `api.helix.example` and your artifact registries.
 - For highly sensitive builds, use `runner.network: isolated` to disable all outbound except Helix.
@@ -85,7 +85,7 @@ scale_up_threshold: 3  # jobs waiting → add runner
 
 ## Monitoring Runners
 
-Runner health is visible at Organization → Runners. Metrics available:
+Runner health is visible at Organization -> Runners. Metrics available:
 - Queue depth per label
 - Active builds per runner
 - Runner CPU/memory utilization (self-hosted only, requires agent)

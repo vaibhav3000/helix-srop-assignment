@@ -6,7 +6,7 @@ tags: [secrets, scanning, tokens, alerts, remediation]
 
 # Secret Scanning
 
-Secret Scanning automatically detects credentials, API keys, and tokens committed to your repositories — before they reach production or are exposed publicly.
+Secret Scanning automatically detects credentials, API keys, and tokens committed to your repositories - before they reach production or are exposed publicly.
 
 ## How It Works
 
@@ -21,9 +21,9 @@ Every push triggers a scan of the diff. Helix compares content against 200+ patt
 
 ## Enabling Secret Scanning
 
-**Repository level:** Settings → Security → Secret Scanning → Enable.
+**Repository level:** Settings -> Security -> Secret Scanning -> Enable.
 
-**Organization level:** Organization Settings → Security → Enforce Secret Scanning (applies to all repos).
+**Organization level:** Organization Settings -> Security -> Enforce Secret Scanning (applies to all repos).
 
 Once enabled, historical commits are scanned within 24 hours on Pro/Enterprise. Free plan scans new pushes only.
 
@@ -32,7 +32,7 @@ Once enabled, historical commits are scanned within 24 hours on Pro/Enterprise. 
 When a secret is detected:
 
 1. The push is **blocked** (on Pro/Enterprise with push protection enabled).
-2. An alert appears in **Security → Secret Alerts**.
+2. An alert appears in **Security -> Secret Alerts**.
 3. Email notifications sent to: repo admins + the committer.
 4. Webhook fired to configured endpoints: `POST /webhook` with `event: secret_detected`.
 
@@ -48,7 +48,7 @@ git filter-repo --path-glob '*.env' --invert-paths
 git push --force-with-lease origin main
 ```
 
-**Step 3: Resolve the alert in UI:** Security → Secret Alerts → [alert] → Mark Resolved → select reason.
+**Step 3: Resolve the alert in UI:** Security -> Secret Alerts -> [alert] -> Mark Resolved -> select reason.
 
 **Step 4: Rotate the credential.** Do not reuse revoked secrets.
 

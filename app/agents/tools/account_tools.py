@@ -1,5 +1,5 @@
 """
-Account tools — used by AccountAgent.
+Account tools - used by AccountAgent.
 
 These tools query the DB for user-specific data.
 Mock data is acceptable for the take-home; the integration matters.
@@ -38,7 +38,7 @@ async def get_recent_builds(user_id: str, limit: int = 5) -> list[BuildSummary]:
     The key evaluation point is that this is wired as an ADK tool
     and the agent correctly invokes it when the user asks about builds.
     """
-    # TODO: implement — query DB or return mock data
+    # TODO: implement - query DB or return mock data
     raise NotImplementedError("Implement get_recent_builds()")
 
 

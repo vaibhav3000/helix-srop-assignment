@@ -8,7 +8,7 @@ tags: [support, tickets, escalation, sla, priority]
 
 ## Opening a Ticket
 
-**UI:** Click the **?** icon → Support → New Ticket.
+**UI:** Click the **?** icon -> Support -> New Ticket.
 
 **API:**
 ```bash
@@ -34,7 +34,7 @@ POST /v1/tickets
 ## Ticket Lifecycle
 
 ```
-open → in_progress → pending_customer → resolved → closed
+open -> in_progress -> pending_customer -> resolved -> closed
                            ↕
                       reopened (within 14 days of resolution)
 ```
@@ -45,7 +45,7 @@ You receive email notifications on every state change. Reply to the email to add
 
 If a ticket is not progressing:
 
-1. **UI:** Open the ticket → **Escalate** button → select reason.
+1. **UI:** Open the ticket -> **Escalate** button -> select reason.
 2. **API:**
 ```bash
 POST /v1/tickets/{ticket_id}/escalate
@@ -61,9 +61,9 @@ Enterprise customers: your CSM can be @-mentioned in ticket comments for direct 
 Include in your ticket to speed resolution:
 
 - **Build ID** (format: `bld_xxxxxxxx`)
-- **Organization ID** (Settings → General → Org ID)
+- **Organization ID** (Settings -> General -> Org ID)
 - **Timestamp** of when the issue started (UTC)
-- **Error messages** — copy the exact text, not a screenshot
+- **Error messages** - copy the exact text, not a screenshot
 - **What changed** before the issue appeared
 
 ## Viewing Ticket History
@@ -77,7 +77,7 @@ GET /v1/tickets/{ticket_id}/comments
 
 SLA clock starts when a ticket is submitted. It pauses when status is `pending_customer` (waiting for your response). If an SLA is breached, the ticket is automatically escalated internally and you are notified.
 
-View SLA status: Ticket detail → **SLA** badge (green = within SLA, yellow = at risk, red = breached).
+View SLA status: Ticket detail -> **SLA** badge (green = within SLA, yellow = at risk, red = breached).
 
 ## Common Ticket Templates
 

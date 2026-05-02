@@ -1,5 +1,5 @@
 ---
-title: RAG (Retrieval-Augmented Generation) — Concepts and Implementation Guide
+title: RAG (Retrieval-Augmented Generation) - Concepts and Implementation Guide
 product_area: reference
 tags: [rag, embeddings, vector-store, chunking, retrieval]
 ---
@@ -23,10 +23,10 @@ The LLM then answers using its reasoning ability + the retrieved context, not ju
 User query
     │
     ▼
-[Embedding model] → query vector
+[Embedding model] -> query vector
     │
     ▼
-[Vector store] → top-k similar chunks (with IDs + scores)
+[Vector store] -> top-k similar chunks (with IDs + scores)
     │
     ▼
 [Prompt assembly]
@@ -37,7 +37,7 @@ User query
    User question: {query}"
     │
     ▼
-[LLM] → grounded answer with citations
+[LLM] -> grounded answer with citations
 ```
 
 ---
@@ -48,8 +48,8 @@ Raw documents are too long to fit in a prompt (and retrieval quality degrades wi
 
 ### Why chunking matters
 
-- **Too large:** retrieval returns the whole doc → irrelevant noise in prompt → worse answers
-- **Too small:** chunks lose context → no sentence makes sense in isolation
+- **Too large:** retrieval returns the whole doc -> irrelevant noise in prompt -> worse answers
+- **Too small:** chunks lose context -> no sentence makes sense in isolation
 
 ### Chunking strategies (choose one, justify in README)
 
@@ -90,7 +90,7 @@ def chunk_sentences(text: str, max_chars: int = 512, overlap_sentences: int = 1)
     return chunks
 ```
 
-**Pro:** chunks end on sentence boundaries → more coherent. **Con:** chunk sizes vary widely.
+**Pro:** chunks end on sentence boundaries -> more coherent. **Con:** chunk sizes vary widely.
 
 #### C. Heading-aware chunking (best for Markdown docs)
 Split on `##` and `###` headings. Each section becomes one or more chunks.
@@ -147,7 +147,7 @@ def extract_frontmatter(text: str) -> tuple[dict, str]:
 
 ## Step 2: Embeddings
 
-An embedding model converts text → a dense vector (list of floats). Similar texts produce vectors that are close in vector space.
+An embedding model converts text -> a dense vector (list of floats). Similar texts produce vectors that are close in vector space.
 
 ### Choosing an embedding model
 
@@ -182,7 +182,7 @@ def embed_query(query: str) -> list[float]:
     result = genai.embed_content(
         model="models/text-embedding-004",
         content=query,
-        task_type="retrieval_query",  # different task type — important for quality
+        task_type="retrieval_query",  # different task type - important for quality
     )
     return result["embedding"]
 ```
@@ -234,9 +234,9 @@ results = collection.query(
     n_results=5,
     where={"product_area": "security"},  # metadata filter (optional)
 )
-# results["ids"][0] → list of chunk IDs
-# results["distances"][0] → cosine distances (lower = more similar)
-# results["documents"][0] → chunk texts
+# results["ids"][0] -> list of chunk IDs
+# results["distances"][0] -> cosine distances (lower = more similar)
+# results["documents"][0] -> chunk texts
 ```
 
 Convert distance to score (0=bad, 1=perfect):
@@ -287,7 +287,7 @@ faiss.normalize_L2(query_vec)
 distances, indices = index.search(query_vec, k=5)
 ```
 
-FAISS has no built-in persistence — save/load manually:
+FAISS has no built-in persistence - save/load manually:
 ```python
 faiss.write_index(index, "helix.index")
 index = faiss.read_index("helix.index")
@@ -337,7 +337,7 @@ The KnowledgeAgent's system instruction should tell it how to use retrieved cont
 You are a Helix product knowledge agent.
 Answer questions using ONLY the provided context chunks.
 Always cite the chunk_id (e.g. "According to [chunk_abc123]...").
-If the context does not contain the answer, say so — do not guess.
+If the context does not contain the answer, say so - do not guess.
 ```
 
 The tool call result should format the chunks clearly:
@@ -393,9 +393,9 @@ async def rerank(query: str, chunks: list[DocChunk], top_k: int = 5) -> list[Doc
 
 For this assignment, implement:
 
-1. **`app/rag/ingest.py`** — CLI that reads `docs/*.md`, chunks, embeds, writes to vector store
-2. **`app/agents/tools/search_docs.py`** — async function callable by KnowledgeAgent
-3. Embed using Google's `text-embedding-004` (or any embedding model — justify choice)
+1. **`app/rag/ingest.py`** - CLI that reads `docs/*.md`, chunks, embeds, writes to vector store
+2. **`app/agents/tools/search_docs.py`** - async function callable by KnowledgeAgent
+3. Embed using Google's `text-embedding-004` (or any embedding model - justify choice)
 4. Vector store: Chroma recommended (simplest), but any works
 5. Chunk IDs must be stable and included in retrieval results
 6. Scores must be in [0, 1] and included in results

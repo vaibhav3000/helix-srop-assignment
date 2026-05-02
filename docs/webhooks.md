@@ -6,11 +6,11 @@ tags: [webhooks, events, integrations, http]
 
 # Webhooks
 
-Webhooks let Helix notify your services when events happen — build completions, secret detections, ticket updates, etc.
+Webhooks let Helix notify your services when events happen - build completions, secret detections, ticket updates, etc.
 
 ## Creating a Webhook
 
-**UI:** Settings → Integrations → Webhooks → New Webhook.
+**UI:** Settings -> Integrations -> Webhooks -> New Webhook.
 
 **API:**
 ```bash
@@ -60,7 +60,7 @@ POST /v1/orgs/{org_id}/webhooks
 
 ## Verifying Signatures
 
-Every delivery includes `X-Helix-Signature-256` — HMAC-SHA256 of the raw payload body using your webhook secret.
+Every delivery includes `X-Helix-Signature-256` - HMAC-SHA256 of the raw payload body using your webhook secret.
 
 ```python
 import hmac, hashlib
@@ -83,7 +83,7 @@ Helix retries failed deliveries (non-2xx responses or timeouts) with exponential
 - Attempt 4: 2 hours later
 - After 4 failures: webhook is paused; admin notified
 
-View delivery history: Settings → Integrations → Webhooks → [webhook] → Recent Deliveries.
+View delivery history: Settings -> Integrations -> Webhooks -> [webhook] -> Recent Deliveries.
 
 ## Testing Webhooks
 

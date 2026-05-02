@@ -1,12 +1,12 @@
 ---
-title: Google ADK (Agent Development Kit) — Concepts and Implementation Guide
+title: Google ADK (Agent Development Kit) - Concepts and Implementation Guide
 product_area: reference
 tags: [adk, agents, tools, orchestration, google]
 ---
 
 # Google Agent Development Kit (ADK)
 
-This guide explains the ADK concepts you need for this assignment. You do not need any other reference — everything required is here.
+This guide explains the ADK concepts you need for this assignment. You do not need any other reference - everything required is here.
 
 Install: `pip install google-adk` (already in `pyproject.toml`).
 
@@ -41,7 +41,7 @@ def get_weather(city: str) -> str:
 agent = LlmAgent(name="weather", model="gemini-2.0-flash", tools=[get_weather])
 ```
 
-**Important:** the function's docstring becomes the tool description. Write clear docstrings — the LLM uses them to decide when to call the tool.
+**Important:** the function's docstring becomes the tool description. Write clear docstrings - the LLM uses them to decide when to call the tool.
 
 **Async tools work too:**
 ```python
@@ -50,7 +50,7 @@ async def search_database(query: str, limit: int = 10) -> list[dict]:
     ...
 ```
 
-### AgentTool — sub-agents as tools
+### AgentTool - sub-agents as tools
 
 This is the key pattern for SROP. You wrap one `LlmAgent` as a tool callable by another:
 
@@ -117,7 +117,7 @@ async def run_once(user_message: str):
 
 ### Persisting sessions across turns
 
-For multi-turn conversations that survive process restarts, you need a persistent session store. ADK's built-in `InMemorySessionService` is lost on restart — you must implement your own or use the DB.
+For multi-turn conversations that survive process restarts, you need a persistent session store. ADK's built-in `InMemorySessionService` is lost on restart - you must implement your own or use the DB.
 
 **Pattern 1: Store full message history in DB, reload on each turn**
 
@@ -291,7 +291,7 @@ async def run_with_retry(runner, **kwargs):
 
 ## Model Selection
 
-For the assignment, `gemini-2.0-flash` is recommended for all agents — it's fast and cheap during development. Use `gemini-1.5-pro` for better accuracy if you need it.
+For the assignment, `gemini-2.0-flash` is recommended for all agents - it's fast and cheap during development. Use `gemini-1.5-pro` for better accuracy if you need it.
 
 If you prefer OpenAI or Anthropic, ADK supports them via LiteLLM:
 

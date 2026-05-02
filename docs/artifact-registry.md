@@ -47,7 +47,7 @@ docker pull registry.helix.example/{org}/{image}:{tag}
 
 Best practices:
 - Tag with `git.sha` for immutable builds: `myapp:a1b2c3d`
-- Tag `latest` only for convenience — never use `latest` in production deployments
+- Tag `latest` only for convenience - never use `latest` in production deployments
 - Use semantic versions for releases: `myapp:1.4.2`
 
 ### Retention Policy
@@ -111,7 +111,7 @@ GET /v1/registry/{org}/{image}/{tag}/scan-report
 
 Configure blocking policies:
 ```yaml
-# Settings → Registry → Scan Policy
+# Settings -> Registry -> Scan Policy
 block_on_severity: critical  # block pushes with critical CVEs
 allow_exceptions:
   - CVE-2024-12345  # acknowledged, no fix available

@@ -1,5 +1,5 @@
 """
-search_docs tool — used by KnowledgeAgent.
+search_docs tool - used by KnowledgeAgent.
 
 Queries the vector store for relevant documentation chunks.
 Returns chunk IDs, scores, and content so the agent can cite sources.
