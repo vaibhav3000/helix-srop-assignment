@@ -1,5 +1,6 @@
 .DS_Store
 demo_script.txt
+test_adk.py
 .env
 .venv/
 __pycache__/
