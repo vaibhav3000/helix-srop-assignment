@@ -1,0 +1,115 @@
+HELIX SROP — DEMO VIDEO SCRIPT (2-3 minutes)
+============================================
+
+[0:00 – 0:20] INTRODUCTION
+---------------------------
+Open terminal, show the repository root.
+
+SAY:
+"This is the Helix SROP backend — a stateful, multi-agent AI support
+system built with FastAPI, Google ADK, SQLAlchemy, and ChromaDB.
+I will walk you through a live demonstration of the full workflow."
+
+
+[0:20 – 0:45] START THE SERVER
+--------------------------------
+Run:
+    uv run uvicorn app.main:app --reload
+
+SAY:
+"The server starts up. On first boot, SQLite tables are auto-created
+via SQLAlchemy. No migration step needed for local development."
+
+
+[0:45 – 1:10] CREATE A SESSION
+--------------------------------
+Run:
+    curl -s -X POST http://localhost:8000/v1/sessions \
+      -H "Content-Type: application/json" \
+      -d '{"user_id": "demo_user", "plan_tier": "pro"}' | python -m json.tool
+
+SAY:
+"We create a session. The system stores the user ID, plan tier, and
+an initial state JSON in SQLite. All persistent state lives in the
+database — the system is fully restart-safe and horizontally scalable."
+
+
+[1:10 – 1:35] KNOWLEDGE QUERY (RAG + AGENT ROUTING)
+-----------------------------------------------------
+Copy the session_id from the previous response, then run:
+    curl -s -X POST http://localhost:8000/v1/chat/<SESSION_ID> \
+      -H "Content-Type: application/json" \
+      -d '{"content": "How do I rotate a deploy key in Helix?"}' | python -m json.tool
+
+SAY:
+"The root agent receives this question and routes it to the
+knowledge_agent using Google ADK's AgentTool — native function
+calling, not text parsing. The knowledge_agent calls search_docs(),
+which embeds the query, queries ChromaDB, and returns the top matching
+document chunks. The final reply cites chunk IDs for traceability."
+
+
+[1:35 – 1:55] GUARDRAIL TRIGGER
+---------------------------------
+Run:
+    curl -s -X POST http://localhost:8000/v1/chat/<SESSION_ID> \
+      -H "Content-Type: application/json" \
+      -d '{"content": "write me a poem"}' | python -m json.tool
+
+SAY:
+"The guardrail fires before any LLM call is made. Out-of-scope
+keywords like 'poem', 'joke', or 'story' are caught immediately.
+No tokens are consumed, no latency from the model — instant refusal.
+Notice the response shows routed_to: guardrails."
+
+
+[1:55 – 2:20] ESCALATION AGENT
+--------------------------------
+Run:
+    curl -s -X POST http://localhost:8000/v1/chat/<SESSION_ID> \
+      -H "Content-Type: application/json" \
+      -d '{"content": "Nothing is working, I want to escalate this issue"}' | python -m json.tool
+
+SAY:
+"The root agent detects a complaint and routes to the escalation_agent.
+The agent calls create_ticket(), which inserts a ticket row into
+SQLite and stores the ticket_id in session state for future follow-up
+across turns. This is Extension E2 — persistent escalation tracking."
+
+
+[2:20 – 2:40] TRACE INSPECTION
+--------------------------------
+Copy the trace_id from a previous response, then run:
+    curl -s http://localhost:8000/v1/traces/<TRACE_ID> | python -m json.tool
+
+SAY:
+"Every turn writes a full observability trace to the database.
+You can see the agent that responded, every tool that was called,
+the retrieved chunk IDs from ChromaDB, and the total latency in
+milliseconds. All PII in arguments — emails, phone numbers — is
+redacted before being written to the DB."
+
+
+[2:40 – 2:55] RUN TESTS
+-------------------------
+Run:
+    uv run pytest -q
+
+SAY:
+"Six tests, all passing. The suite covers guardrail enforcement,
+RAG retrieval scoring, and the full pipeline integration including
+state persistence across turns."
+
+
+[2:55 – 3:00] CLOSING
+----------------------
+SAY:
+"The full source code, setup instructions, and technical report
+are available at:
+    github.com/vaibhav3000/helix-srop-assignment
+Thank you for reviewing my submission."
+
+
+============================================
+END OF SCRIPT
+============================================
