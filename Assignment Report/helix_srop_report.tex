@@ -117,7 +117,7 @@
 % Page style
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\color{darkgray} Helix SROP -- Technical Report}
+\fancyhead[L]{\small\color{darkgray} Helix SROP - Technical Report}
 \fancyhead[R]{\small\color{darkgray} ServiceHive GenAI Engineer Assignment}
 \fancyfoot[C]{\small\color{darkgray}\thepage}
 \renewcommand{\headrulewidth}{0.4pt}
@@ -125,11 +125,11 @@
 
 % Title
 \title{%
-  {\large\color{darkgray}\textsc{ServiceHive -- GenAI Engineer Assignment}}\\[0.5em]
+  {\large\color{darkgray}\textsc{ServiceHive - GenAI Engineer Assignment}}\\[0.5em]
   {\LARGE\bfseries\color{primary} Helix SROP: Stateful RAG Orchestration Pipeline}\\[0.3em]
   {\large\color{darkgray} Complete Technical Report for Reviewer}
 }
-\author{Vaibhav Mahore -- \href{https://github.com/vaibhav3000}{github.com/vaibhav3000}}
+\author{Vaibhav Mahore - \href{https://github.com/vaibhav3000}{github.com/vaibhav3000}}
 \date{May 2026}
 
 \begin{document}
@@ -169,8 +169,8 @@ The three core capabilities the assignment required:
 \textbf{Layer} & \textbf{Technology} \\
 \midrule
 Web framework & FastAPI 0.115+ with async handlers throughout \\
-LLM and agents & Google ADK (\texttt{google-adk}) with Gemini 2.0 Flash \\
-Embeddings & Google Generative AI (\texttt{text-embedding-004}, 768 dimensions) \\
+LLM and agents & Google ADK (\texttt{google-adk}) with Gemini 2.5 Flash \\
+Embeddings & Google Generative AI (\texttt{gemini-embedding-2}, 768 dimensions) \\
 Vector store & ChromaDB (persistent, on-disk collection named \texttt{helix\_docs}) \\
 Application database & SQLite via SQLAlchemy 2.x async + aiosqlite driver \\
 Data validation & Pydantic v2 for all request and response schemas \\
@@ -229,7 +229,7 @@ The following diagram shows the complete system from a single HTTP request throu
        v
 +------+-------------------------------------------------------------------+
 |                        srop_root  (LlmAgent)                             |
-|  model: gemini-2.0-flash                                                 |
+|  model: gemini-2.5-flash                                                 |
 |  tools: [AgentTool(knowledge_agent),                                     |
 |           AgentTool(account_agent),                                      |
 |           AgentTool(escalation_agent)]                                   |
@@ -441,7 +441,7 @@ Using the file path and chunk index as the hash input means the same file always
 
 \subsubsection{Step 5: Embedding and upsert}
 
-Each chunk text is embedded via \texttt{google.generativeai.embed\_content} using the \texttt{models/text-embedding-004} model, which produces 768-dimensional vectors. The chunk, its embedding, its metadata, and its ID are upserted into the \texttt{helix\_docs} ChromaDB collection at \texttt{settings.CHROMA\_PATH}.
+Each chunk text is embedded via \texttt{google.generativeai.embed\_content} using the \texttt{models/gemini-embedding-2} model, which produces 768-dimensional vectors. The chunk, its embedding, its metadata, and its ID are upserted into the \texttt{helix\_docs} ChromaDB collection at \texttt{settings.CHROMA\_PATH}.
 
 \subsection{Retrieval Function (\texttt{app/rag/retriever.py})}
 
@@ -482,7 +482,7 @@ The assignment specifically required the \texttt{google-adk} package and the \te
 \begin{lstlisting}[style=python]
 knowledge_agent = LlmAgent(
     name="knowledge_agent",
-    model=settings.MODEL_NAME,    # gemini-2.0-flash
+    model=settings.MODEL_NAME,    # gemini-2.5-flash
     instruction=(
         "You are a Helix product support specialist. "
         "Answer only from the retrieved documentation. "
@@ -933,7 +933,7 @@ Chunking strategy & Heading-aware + sentence sub-split & Preserves logical secti
 ADK routing & \texttt{AgentTool} via function calling & Structured, not string-parsed; required by assignment; robust to rephrasing \\
 ADK session scope & Per-turn transient \texttt{InMemorySessionService} & Simpler than a custom \texttt{BaseSessionService}; state lives in DB not in ADK \\
 Vector store & ChromaDB on-disk & Assignment recommendation; simple setup; upsert prevents re-ingest duplicates \\
-Embedding model & \texttt{text-embedding-004} (768 dims) & Native to Google AI ecosystem; consistent with LLM provider \\
+Embedding model & \texttt{gemini-embedding-2} (768 dims) & Native to Google AI ecosystem; consistent with LLM provider \\
 Test mocking boundary & ADK runner \texttt{run\_async} method & Isolates tests from network; fast CI; still tests pipeline logic end-to-end \\
 \bottomrule
 \end{tabularx}

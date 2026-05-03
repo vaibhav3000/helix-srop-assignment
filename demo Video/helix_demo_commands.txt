@@ -1,0 +1,98 @@
+
+
+
+--------------------------------------------------------
+ PRE-DEMO CLEAN SLATE - RUN BEFORE STARTING SERVER
+--------------------------------------------------------
+
+Remove-Item helix.db -ErrorAction SilentlyContinue
+
+uv run python -m app.rag.ingest --path docs/
+
+
+--------------------------------------------------------
+ TERMINAL 1 - START BEFORE RECORDING BEGINS
+--------------------------------------------------------
+
+uv run uvicorn app.main:app --reload
+
+
+--------------------------------------------------------
+ STEP 1  [0:15]  Health Check + Create Session
+--------------------------------------------------------
+
+Invoke-RestMethod -Uri http://127.0.0.1:8000/healthz
+
+$response = Invoke-RestMethod -Uri http://127.0.0.1:8000/v1/sessions -Method Post -ContentType "application/json" -Body '{"user_id": "demo_user", "plan_tier": "pro"}'
+$session_id = $response.session_id
+echo "Session ID saved: $session_id"
+
+
+--------------------------------------------------------
+ STEP 2  [0:35]  Account Agent - Recent Builds
+ Expect: routed_to = account_agent
+--------------------------------------------------------
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/v1/chat/$session_id" -Method Post -ContentType "application/json" -Body '{"content": "Can you show me my recent failed builds?"}' | ConvertTo-Json
+
+
+--------------------------------------------------------
+STEP 3  [0:55]  Knowledge Agent - RAG with Citations
+Expect: [chunk_id] references in the reply text
+--------------------------------------------------------
+
+$r3 = Invoke-RestMethod -Uri "http://127.0.0.1:8000/v1/chat/$session_id" -Method Post -ContentType "application/json" -Body '{"content": "How do I rotate my deploy key?"}'
+$r3 | ConvertTo-Json
+$trace_id = $r3.trace_id
+echo "Trace ID saved: $trace_id"
+
+
+--------------------------------------------------------
+STEP 4  [1:10]  Fetch Trace from Step 3
+ Expect: retrieved_chunk_ids, tool_calls, latency_ms visible
+--------------------------------------------------------
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/v1/traces/$trace_id" | ConvertTo-Json -Depth 5
+
+
+--------------------------------------------------------
+ STEP 5  [1:25]  Guardrail Refusal
+ Expect: refusal message, no trace_id, routed_to = guardrails
+--------------------------------------------------------
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/v1/chat/$session_id" -Method Post -ContentType "application/json" -Body '{"content": "write me a poem about cloud infrastructure"}' | ConvertTo-Json
+
+
+--------------------------------------------------------
+ STEP 6  [1:35]  State Persistence - Restart the Server
+ First go to Terminal 1 and press Ctrl+C
+ Then press Up arrow and Enter to restart:
+   uv run uvicorn app.main:app --reload
+ Wait for "Application startup complete" message
+ Then paste the command below into Terminal 2
+ Expect: reply knows pro plan tier and prior context
+         escalation_agent creates a ticket_id
+--------------------------------------------------------
+
+Invoke-RestMethod -Uri "http://127.0.0.1:8000/v1/chat/$session_id" -Method Post -ContentType "application/json" -Body '{"content": "This is too confusing. Escalate this issue and note my plan tier."}' | ConvertTo-Json
+
+
+--------------------------------------------------------
+ STEP 7  [2:30]  Close - No Command
+ Say: "That covers all core features. Source is on GitHub.
+       Thank you for watching."
+--------------------------------------------------------
+
+
+========================================================
+ FEATURE CHECKLIST - POINT THESE OUT DURING THE VIDEO
+========================================================
+
+ Step 1  session_id returned           Session creation works
+ Step 2  routed_to = account_agent     AgentTool routing works
+ Step 3  [chunk_id] in reply           RAG citations work
+ Step 4  retrieved_chunk_ids present   Trace observability works
+ Step 5  empty trace_id                E5 guardrails work
+ Step 6  pro tier + ticket_id          Pattern 3 state survives restart
+
+========================================================

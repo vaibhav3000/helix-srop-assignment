@@ -8,7 +8,11 @@ from sqlalchemy.future import select
 
 from app.db.models import AgentTrace, Session, IdempotencyRecord
 from app.db.session import get_db
+from app.errors import SessionNotFoundError
 from app.srop.pipeline import run_turn, run_turn_stream
+import structlog
+
+logger = structlog.get_logger()
 
 router = APIRouter(prefix="/v1")
 
@@ -61,7 +65,20 @@ async def chat(
         if record:
             return ChatResponse(**record.response_json)
 
-    result = await run_turn(session_id=session_id, user_message=request.content, db=db)
+    try:
+        result = await run_turn(session_id=session_id, user_message=request.content, db=db)
+    except SessionNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        exc_str = str(exc)
+        if "RESOURCE_EXHAUSTED" in exc_str or "429" in exc_str:
+            logger.warning("rate_limit_hit", session_id=session_id)
+            raise HTTPException(
+                status_code=429,
+                detail="Gemini API rate limit reached. Please wait ~60 seconds and try again.",
+            )
+        logger.exception("run_turn_error", session_id=session_id)
+        raise HTTPException(status_code=500, detail=str(exc))
     
     response_data = {
         "reply": result.reply,

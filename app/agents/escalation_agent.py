@@ -1,5 +1,6 @@
 from typing import Literal
 
+from google.adk.models.lite_llm import LiteLlm
 from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
 
@@ -19,7 +20,7 @@ async def create_ticket(user_id: str, summary: str, priority: Literal["low", "me
 
 escalation_agent = LlmAgent(
     name="escalation_agent",
-    model=settings.MODEL_NAME,
+    model=LiteLlm(model=settings.GROQ_MODEL_NAME),
     instruction="You are an escalation specialist. Create support tickets for user complaints or escalation requests.",
     tools=[FunctionTool(create_ticket)]
 )

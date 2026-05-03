@@ -1,3 +1,4 @@
+from google.adk.models.lite_llm import LiteLlm
 from google.adk.agents import LlmAgent
 from google.adk.tools import FunctionTool
 
@@ -23,7 +24,7 @@ def get_account_status(user_id: str) -> dict:
 
 account_agent = LlmAgent(
     name="account_agent",
-    model=settings.MODEL_NAME,
+    model=LiteLlm(model=settings.GROQ_MODEL_NAME),
     instruction="You are an account and build specialist. Answer questions based on the user's account and build status.",
     tools=[FunctionTool(get_recent_builds), FunctionTool(get_account_status)]
 )

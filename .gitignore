@@ -1,4 +1,5 @@
 .DS_Store
+demo.txt
 demo_script.txt
 test_adk.py
 .env

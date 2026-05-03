@@ -5,8 +5,8 @@ import re
 from pathlib import Path
 
 import chromadb
-import google.generativeai as genai
 
+from app.rag.embeddings import embed_text
 from app.settings import settings
 
 
@@ -92,10 +92,11 @@ async def ingest_directory(docs_path: Path) -> None:
     """
     md_files = list(docs_path.rglob("*.md"))
 
-    if settings.GOOGLE_API_KEY:
-        genai.configure(api_key=settings.GOOGLE_API_KEY)
-
     chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PATH)
+    try:
+        chroma_client.delete_collection(name="helix_docs")
+    except Exception:
+        pass
     collection = chroma_client.get_or_create_collection(name="helix_docs")
 
     total_chunks = 0
@@ -111,16 +112,7 @@ async def ingest_directory(docs_path: Path) -> None:
             # Generate a stable, deterministic ID for each chunk based on its source file and index
             chunk_id = hashlib.sha256(f"{file_path}::{i}".encode()).hexdigest()[:12]
 
-            # embed or use a dummy vector if no key set
-            if settings.GOOGLE_API_KEY:
-                resp = genai.embed_content(
-                    model=settings.EMBED_MODEL,
-                    content=chunk,
-                    task_type="retrieval_document",
-                )
-                embedding = resp["embedding"]
-            else:
-                embedding = [0.1] * 768
+            embedding = embed_text(chunk, task_type="retrieval_document")
 
             chunk_ids.append(chunk_id)
             embeddings.append(embedding)
