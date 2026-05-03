@@ -66,8 +66,13 @@ def mock_adk(monkeypatch):
         def is_final_response(self):
             return self._is_final
 
-    async def mock_run_async(self, user_id, session_id, new_message, *args, **kwargs):
-        content = new_message.get("parts", [{}])[0].get("text", "")
+    def mock_run_async(self, user_id, session_id, new_message, *args, **kwargs):
+        if hasattr(new_message, "parts"):
+            content = new_message.parts[0].text if new_message.parts else ""
+        elif isinstance(new_message, dict):
+            content = new_message.get("parts", [{}])[0].get("text", "")
+        else:
+            content = str(new_message)
 
         async def _stream():
             if "rotate" in content.lower():
